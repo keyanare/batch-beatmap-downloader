@@ -226,7 +226,7 @@ export const dropdownMap = new Map<RuleType, DropdownOption[]>([
     RuleType.SPECIAL,
     [
       { value: "Farm", label: "Farm" },
-      { value: "Stream", label: "Stream "},
+      { value: "Stream", label: "Stream" },
       { value: "RankedMapper", label: "By Ranked Mapper" }
     ]
   ]

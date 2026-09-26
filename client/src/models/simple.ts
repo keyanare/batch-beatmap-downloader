@@ -1,64 +1,54 @@
-import { Group, Node } from './filter'
-import { dropdownMap, DropdownOption, inputOptions, Rule, RuleType } from './rules';
+import { Group, Node, newId } from "./filter";
+import { dropdownMap, DropdownOption, inputOptions, Rule, RuleType } from "./rules";
+
+// "Simple mode": a flat list of rules, edited through form fields and an osu! style text query.
 
 export enum InputType {
   TEXT = "text",
   MIN_MAX = "minmax",
   SLIDER = "slider",
   DROPDOWN = "dropdown",
-  SWITCH = "switch"
+  SWITCH = "switch",
 }
 
-export type TInputItemBase = {
+interface InputItemBase {
   key: string;
   label: string;
-  required?: boolean;
-};
+}
 
-export type TInputItemText = TInputItemBase & {
-  type: InputType.TEXT;
-  defaultValue: string,
-};
+export type TInputItemText = InputItemBase & { type: InputType.TEXT; placeholder?: string };
 
 export interface DropdownValue {
   not: boolean;
   option: DropdownOption;
 }
 
-export type TInputItemDropdown = TInputItemBase & {
+export type TInputItemDropdown = InputItemBase & {
   type: InputType.DROPDOWN;
   options: DropdownOption[];
-  defaultValue: DropdownValue;
+  /** Selecting this option means "don't filter". */
+  empty: string;
   warning?: string;
 };
 
-export type TInputItemMinMax = TInputItemBase & {
-  type: InputType.MIN_MAX;
-  defaultValue: number[];
-  step: number;
-}
+export type TInputItemMinMax = InputItemBase & { type: InputType.MIN_MAX; step: number; unit?: string };
 
-export type TInputItemSlider = TInputItemBase & {
-  type: InputType.SLIDER;
-  min: number;
-  max: number;
-  step: number
-  defaultValue: number[]
-}
+export type TInputItemSlider = InputItemBase & { type: InputType.SLIDER; min: number; max: number; step: number };
 
-export type TInputItemSwitch = TInputItemBase & {
-  type: InputType.SWITCH;
-  category: string;
-  defaultValue: boolean | undefined;
-}
+export type TInputItemSwitch = InputItemBase & { type: InputType.SWITCH };
 
 export type TInputItem = TInputItemText | TInputItemDropdown | TInputItemMinMax | TInputItemSlider | TInputItemSwitch;
 
+/** Values as the form fields see them. `null` means "not set". */
+export type MinMax = [number | null, number | null];
+export type ItemValue = string | DropdownValue | MinMax | boolean | undefined;
+
 export interface Section {
-  title: string
-  items: TInputItem[]
+  title: string;
+  items: TInputItem[];
 }
 
+/** Maps text query keys to database fields. */
 export const keyMap = new Map<string, string>([
   ["status", "Approved"],
   ["approved", "Approved"],
@@ -66,7 +56,9 @@ export const keyMap = new Map<string, string>([
   ["title", "Title"],
   ["artist", "Artist"],
   ["creator", "Creator"],
+  ["mapper", "Creator"],
   ["version", "Version"],
+  ["diff", "Version"],
   ["bpm", "Bpm"],
   ["hp", "Hp"],
   ["od", "Od"],
@@ -75,246 +67,284 @@ export const keyMap = new Map<string, string>([
   ["keys", "Cs"],
   ["mode", "Mode"],
   ["stars", "Stars"],
+  ["star", "Stars"],
+  ["sr", "Stars"],
   ["combo", "MaxCombo"],
   ["maxcombo", "MaxCombo"],
-  ["drain", "HitLength"],
   ["length", "HitLength"],
+  ["drain", "HitLength"],
+  ["hitlength", "HitLength"],
   ["source", "Source"],
   ["tags", "Tags"],
   ["genre", "Genre"],
   ["language", "Language"],
-  ["favouritecount", "FavouriteCount"],
   ["favourites", "FavouriteCount"],
   ["favorites", "FavouriteCount"],
-  ["passes", "PassCount"],
-  ["passcount", "PassCount"],
+  ["favouritecount", "FavouriteCount"],
   ["plays", "PlayCount"],
   ["playcount", "PlayCount"],
+  ["passes", "PassCount"],
+  ["passcount", "PassCount"],
   ["special", "Special"],
-  ["farm", "Special"],
-  ["stream", "Special"],
-  ["rankedmapper", "Special"],
-  ["hitlength", "HitLength"],
-  ["drain", "HitLength"],
-  ["length", "HitLength"],
-])
-
-export const valueMap = new Map<string, string>([
-  ["r", "ranked"],
-  ['u', 'unranked'],
-  ['l', 'loved'],
-  ['o', 'osu!'],
-  ['t', 'Taiko'],
-  ['c', 'Catch the Beat'],
-  ['m', 'osu!mania'],
-  ['english', 'English'],
-  ['japanese', 'Japanese'],
-  ['chinese', 'Chinese'],
-  ['korean', 'Korean'],
-  ['french', 'French'],
-  ['german', 'German'],
-  ['swedish', 'Swedish'],
-  ['spanish', 'Spanish'],
-  ['italian', 'Italian'],
-  ['nm1', 'NM1'],
-  ['nm2', 'NM2'],
-  ['nm3', 'NM3'],
-  ['nm4', 'NM4'],
-  ['nm5', 'NM5'],
-  ['nm6', 'NM6'],
-  ['hd1', 'HD1'],
-  ['hd2', 'HD2'],
-  ['hd3', 'HD3'],
-  ['hd4', 'HD4'],
-  ['dt1', 'DT1'],
-  ['dt2', 'DT2'],
-  ['dt3', 'DT3'],
-  ['dt4', 'DT4'],
-  ['hr1', 'HR1'],
-  ['hr2', 'HR2'],
-  ['hr3', 'HR3'],
-  ['hr4', 'HR4'],
-  ['fm1', 'FM1'],
-  ['fm2', 'FM2'],
-  ['fm3', 'FM3'],
-  ['fm4', 'FM4'],
-  ['tb1', 'TB'],
-])
-
-export const getType = (type: string) => {
-  for (const option of inputOptions) {
-    if (option.value === type) {
-      return option.type
-    }
-  }
-
-  return RuleType.TEXT
-}
-
-export const getRules = (tree: Node, key?: string): Rule[] => {
-  if (!tree.group) return []
-
-  const rules: Rule[] = [];
-  for (const child of tree.group.children) {
-    if (child.rule) rules.push(child.rule)
-  }
-  if (!key) return rules
-
-  const realKey = keyMap.get(key.toLowerCase())
-  if (!realKey) return []
-
-  if (realKey === "Special") return rules.filter(rule => rule.value === key)
-  return rules.filter(rule => rule.field === realKey)
-}
-
-export const textAliasMap = new Map<string, string>([
-  ['osu!', 'o'],
-  ['o', 'osu!'],
-  ['Taiko', 't'],
-  ['t', 'Taiko'],
-  ['Catch the Beat', 'c'],
-  ['c', 'Catch the Beat'],
-  ['osu!mania', 'm'],
-  ['m', 'osu!mania'],
-  ['Approved', 'status'],
-  ['status', 'Approved'],
-  ['r', 'ranked'],
-  ['Ranked', 'r'],
-  ['u', 'Unranked'],
-  ['Unranked', 'u'],
-  ['l', 'loved'],
-  ['Loved', 'l'],
-  ['video game', 'game'],
-  ['game', 'video game'],
-  ['hip hop', 'hiphop'],
-  ['hiphop', 'hip hop'],
-  ['HasLeaderboard', 'leaderboard'],
-  ['leaderboard', 'HasLeaderboard'],
 ]);
 
-export const getValue = (tree: Node, item: TInputItem) => {
-  const rules = getRules(tree, item.key)
+/** Short names used in the text query, for fields and values. */
+const fieldAliases: Record<string, string> = {
+  Approved: "status",
+  Creator: "creator",
+  HitLength: "length",
+  MaxCombo: "combo",
+  FavouriteCount: "favourites",
+  PlayCount: "plays",
+  PassCount: "passes",
+};
+
+const valueAliases: Record<string, string> = {
+  "osu!": "o",
+  Taiko: "t",
+  "Catch the Beat": "c",
+  "osu!mania": "m",
+  ranked: "r",
+  loved: "l",
+  Unranked: "u",
+  HasLeaderboard: "leaderboard",
+  "video game": "game",
+  "hip hop": "hiphop",
+};
+
+const aliasToValue: Record<string, string> = Object.fromEntries(
+  Object.entries(valueAliases).map(([value, alias]) => [alias, value]),
+);
+
+const specialValues = ["Farm", "Stream", "RankedMapper"];
+
+export const getType = (field: string): RuleType => inputOptions.find((option) => option.value === field)?.type ?? RuleType.TEXT;
+
+const isTextField = (field: string) => getType(field) === RuleType.TEXT;
+
+type Side = "min" | "max" | "eq";
+
+const sideOf = (operator: string): Side => {
+  if (operator === ">" || operator === ">=") return "min";
+  if (operator === "<" || operator === "<=") return "max";
+  return "eq";
+};
+
+const flatRules = (group: Group) => group.children.filter((child) => child.rule) as (Node & { rule: Rule })[];
+
+const fieldOf = (item: TInputItem) => (item.type === InputType.SWITCH ? "Special" : keyMap.get(item.key.toLowerCase()) ?? item.key);
+
+const rulesFor = (group: Group, item: TInputItem) => {
+  const field = fieldOf(item);
+  return flatRules(group)
+    .map((child) => child.rule)
+    .filter((rule) => rule.field === field && (item.type !== InputType.SWITCH || rule.value === item.key));
+};
+
+export const getValue = (group: Group, item: TInputItem): ItemValue => {
+  const rules = rulesFor(group, item);
 
   switch (item.type) {
     case InputType.SLIDER:
-    case InputType.MIN_MAX:
-      const mins: number[] = []
-      const maxs: number[] = []
+    case InputType.MIN_MAX: {
+      let min: number | null = null;
+      let max: number | null = null;
       for (const rule of rules) {
-        const op = rule.operator
-        const val = parseFloat(rule.value)
-        if (op === ">") mins.push(val + item.step)
-        if (op === ">=") mins.push(val)
-        if (op === "<") maxs.push(val - item.step)
-        if (op === "<=") maxs.push(val)
-        if (op === "=" || op === "==" || op === "!=") return [val, val]
+        const value = parseFloat(rule.value);
+        if (Number.isNaN(value)) continue;
+        if (rule.operator === ">") min = value + item.step;
+        else if (rule.operator === ">=") min = value;
+        else if (rule.operator === "<") max = value - item.step;
+        else if (rule.operator === "<=") max = value;
+        else if (rule.operator === "=") return [value, value];
       }
-
-      mins.sort()
-      maxs.sort()
-      let [min, max] = item.defaultValue
-
-      if (mins.length) min = mins[mins.length - 1]
-      if (maxs.length) max = maxs[0]
-
-      return [min, max]
+      if (item.type === InputType.SLIDER) return [min ?? item.min, max ?? item.max];
+      return [min, max];
+    }
     case InputType.TEXT:
-      if (rules.length) return rules[0].value
-      return ""
-    case InputType.DROPDOWN:
-      if (!rules.length) return item.defaultValue
-      const dropdownRule = rules[0]
-      const found = item.options.find(option => option.value === dropdownRule.value)
-      if (!found) return item.defaultValue
-
-      const value: DropdownValue = {
-        not: dropdownRule.operator === "!=",
-        option: found
-      }
-
-      return value
+      return rules[0]?.value ?? "";
+    case InputType.DROPDOWN: {
+      const rule = rules[0];
+      const option = rule && item.options.find((candidate) => candidate.value === rule.value);
+      if (!rule || !option) return { not: false, option: item.options.find((o) => o.value === item.empty) ?? item.options[0] };
+      return { not: rule.operator === "!=", option };
+    }
     case InputType.SWITCH:
-      if (!rules.length) return item.defaultValue
-      const switchRule = rules[0];
-      return switchRule.operator === "="
+      return rules.length ? rules[0].operator === "=" : undefined;
   }
+};
+
+/** Replaces the rules of `field` on the given side with a new rule. */
+const withRule = (group: Group, field: string, operator: string, value: string, specialValue?: string): Group => {
+  const side = sideOf(operator);
+  const children = group.children.filter((child) => {
+    const rule = child.rule;
+    if (!rule || rule.field !== field) return true;
+    if (field === "Special") return rule.value !== specialValue;
+    return side !== "eq" && sideOf(rule.operator) !== "eq" && sideOf(rule.operator) !== side;
+  });
+  children.push({ id: newId(), rule: { field, operator, value, type: getType(field) } });
+  return { ...group, children };
+};
+
+const withoutRules = (group: Group, field: string, side?: Side, specialValue?: string): Group => ({
+  ...group,
+  children: group.children.filter((child) => {
+    const rule = child.rule;
+    if (!rule || rule.field !== field) return true;
+    if (specialValue !== undefined) return rule.value !== specialValue;
+    return side !== undefined && sideOf(rule.operator) !== side;
+  }),
+});
+
+const trimNumber = (value: number) => String(Math.round(value * 1000) / 1000);
+
+export const setValue = (group: Group, item: TInputItem, value: ItemValue): Group => {
+  const field = fieldOf(item);
+
+  switch (item.type) {
+    case InputType.SLIDER:
+    case InputType.MIN_MAX: {
+      const [min, max] = value as MinMax;
+      const isDefaultMin = min === null || (item.type === InputType.SLIDER && min <= item.min);
+      const isDefaultMax = max === null || (item.type === InputType.SLIDER && max >= item.max);
+      // An exact match rule would stay behind otherwise
+      let next = withoutRules(group, field, "eq");
+      next = isDefaultMin ? withoutRules(next, field, "min") : withRule(next, field, ">=", trimNumber(min));
+      next = isDefaultMax ? withoutRules(next, field, "max") : withRule(next, field, "<=", trimNumber(max));
+      return next;
+    }
+    case InputType.TEXT: {
+      const text = (value as string).trim();
+      return text ? withRule(group, field, "like", text) : withoutRules(group, field);
+    }
+    case InputType.DROPDOWN: {
+      const { option, not } = value as DropdownValue;
+      if (option.value === item.empty && !not) return withoutRules(group, field);
+      return withRule(group, field, not ? "!=" : "=", option.value);
+    }
+    case InputType.SWITCH: {
+      if (value === undefined) return withoutRules(group, "Special", undefined, item.key);
+      return withRule(group, "Special", value ? "=" : "!=", item.key, item.key);
+    }
+  }
+};
+
+// Text query, e.g. `status=r mode=o stars>=6.5 artist="camellia"`
+
+const quote = (value: string) => (/[\s"]/.test(value) || value === "" ? `"${value.replace(/"/g, "")}"` : value);
+
+const isDefaultRule = (rule: Rule) =>
+  (getType(rule.field) === RuleType.SLIDER &&
+    ((rule.operator === ">=" && parseFloat(rule.value) <= 0) || (rule.operator === "<=" && parseFloat(rule.value) >= 10))) ||
+  (isTextField(rule.field) && rule.value.trim() === "");
+
+export const treeToText = (group: Group) =>
+  flatRules(group)
+    .map(({ rule }) => rule)
+    .filter((rule) => !isDefaultRule(rule))
+    .map((rule) => {
+      if (rule.field === "Special") return `${rule.value.toLowerCase()}${rule.operator === "!=" ? "=no" : "=yes"}`;
+      const key = fieldAliases[rule.field] ?? rule.field.toLowerCase();
+      const operator = rule.operator === "like" ? "=" : rule.operator === "not like" ? "!=" : rule.operator;
+      const value = valueAliases[rule.value] ?? rule.value;
+      return `${key}${operator}${quote(value.toLowerCase())}`;
+    })
+    .join(" ");
+
+const TERM = /([a-z]+)(<=|>=|==|!=|=|<|>)("[^"]*"?|\S+)/gi;
+
+export interface ParsedText {
+  group: Group;
+  unknown: string[];
 }
+
+const canonicalDropdownValue = (field: string, raw: string) => {
+  const options = dropdownMap.get(getType(field)) ?? [];
+  const value = aliasToValue[raw] ?? raw;
+  return options.find((option) => option.value.toLowerCase() === value.toLowerCase())?.value;
+};
+
+/** Parses a text query into a flat group. Unknown terms are reported back instead of silently dropped. */
+export const textToTree = (text: string): ParsedText => {
+  let group: Group = { connector: { type: "AND", not: [] }, children: [] };
+  const unknown: string[] = [];
+
+  // Anything that isn't part of a term is unknown too
+  const leftovers = text.replace(TERM, " ").trim();
+  if (leftovers) unknown.push(...leftovers.split(/\s+/));
+
+  for (const match of text.matchAll(TERM)) {
+    const [term, rawKey, rawOperator, rawValue] = match;
+    const key = rawKey.toLowerCase();
+    const operator = rawOperator === "==" ? "=" : rawOperator;
+    const value = rawValue.replace(/^"|"$/g, "");
+
+    // Special tags, e.g. farm=yes / stream=no
+    const special = specialValues.find((candidate) => candidate.toLowerCase() === key);
+    if (special) {
+      const on = !["no", "false", "0", "n"].includes(value.toLowerCase());
+      group = withRule(group, "Special", operator === "!=" ? (on ? "!=" : "=") : on ? "=" : "!=", special, special);
+      continue;
+    }
+
+    const field = keyMap.get(key);
+    if (!field || field === "Special") {
+      unknown.push(term);
+      continue;
+    }
+
+    const type = getType(field);
+    if (type === RuleType.TEXT) {
+      if (operator !== "=" && operator !== "!=") {
+        unknown.push(term);
+        continue;
+      }
+      group = withRule(group, field, operator === "=" ? "like" : "not like", value);
+    } else if (type === RuleType.NUMBER || type === RuleType.SLIDER) {
+      if (Number.isNaN(parseFloat(value))) {
+        unknown.push(term);
+        continue;
+      }
+      group = withRule(group, field, operator, String(parseFloat(value)));
+    } else {
+      const canonical = canonicalDropdownValue(field, value);
+      if (!canonical || (operator !== "=" && operator !== "!=")) {
+        unknown.push(term);
+        continue;
+      }
+      group = withRule(group, field, operator, canonical);
+    }
+  }
+
+  return { group, unknown };
+};
 
 export const treeIsCompatibleWithSimpleMode = (group: Group) => {
-  if (group.connector.type === "OR") return false;
-  if (group.connector.not.length) return false;
+  if (group.connector.type === "OR" || group.connector.not.length) return false;
+  // Nested groups are fine as long as they just wrap rules joined with AND
+  const compatible = (node: Node): boolean => {
+    if (!node.group) return true;
+    if (node.group.connector.not.length) return false;
+    if (node.group.connector.type === "OR" && node.group.children.length > 1) return false;
+    return node.group.children.every(compatible);
+  };
+  return group.children.every(compatible);
+};
 
-  // traverse tree, if there is a sub group containing more than one child, return False
-  const traverse = (node: Node): boolean => {
-    if (!node.group) return true
-    if (node.group.connector.not.length) return false
-    if (node.group.children.length > 1) return false
-    return traverse(node.group.children[0])
-  }
+/** Flattens nested groups into a single AND group. Only lossless for compatible trees. */
+export const convertTreeToSimpleMode = (group: Group): Group => {
+  const children: Node[] = [];
+  const collect = (node: Node) => {
+    if (node.group) node.group.children.forEach(collect);
+    else if (node.rule) children.push({ id: node.id, rule: { ...node.rule } });
+  };
+  group.children.forEach(collect);
+  return { connector: { type: "AND", not: [] }, children };
+};
 
-  for (const child of group.children) {
-    if (!traverse(child)) return false
-  }
-
-  return true
-}
-
-export const convertTreeToSimpleMode = (group: Group) => {
-  const newGroup: Group = {
-    connector: {
-      type: "AND",
-      not: [],
-    },
-    children: []
-  }
-
-  // flatten the tree by moving all rules to the root
-  const traverse = (node: Node) => {
-    if (node.group && node.group.children.length) {
-      traverse(node.group.children[0])
-    } else {
-      newGroup.children.push({ ...node })
-    }
-  }
-
-  for (const child of group.children) {
-    traverse(child)
-  }
-
-  return newGroup;
-}
-
-export const shouldSkipText = (rule: Rule) => {
-  if (rule.type === RuleType.SLIDER && (rule.operator === ">=" || rule.operator === "<=")) {
-    return rule.value === "0" || rule.value === "10"
-  }
-
-  if (rule.type === RuleType.TEXT && rule.value === "") return true
-  return false
-}
-
-export const convertTreeToText = (tree: Node) => {
-  let output = ""
-  if (!tree.group) return output;
-  for (const child of tree.group.children) {
-    if (!child.rule) continue
-    const rule = child.rule
-    if (shouldSkipText(rule)) continue
-
-    const field = textAliasMap.get(rule.field) ?? rule.field
-    const value = textAliasMap.get(rule.value) ?? rule.value
-    let operator = rule.operator
-    if (rule.operator === "not like") {
-      operator = "!="
-    } else if (rule.operator === "like") {
-      operator = "="
-    }
-
-    output += `${field}${operator}${value} `.toLowerCase()
-  }
-
-  return output.trim()
-}
+const option = (type: RuleType, value: string) =>
+  (dropdownMap.get(type) ?? []).find((candidate) => candidate.value === value) ?? { value, label: value };
 
 export const aboveSection: Section = {
   title: "Above",
@@ -322,198 +352,75 @@ export const aboveSection: Section = {
     {
       type: InputType.DROPDOWN,
       key: "Mode",
-      label: "Mode",
+      label: "Game mode",
       options: dropdownMap.get(RuleType.MODE) ?? [],
-      defaultValue: { option: { value: "any", label: "Any" }, not: false },
-      warning: "You may want to set this to your game mode"
+      empty: "any",
+      warning: "All game modes",
     },
     {
       type: InputType.DROPDOWN,
       key: "Approved",
       label: "Status",
       options: dropdownMap.get(RuleType.STATUS) ?? [],
-      defaultValue: { option: { value: "any", label: "Any" }, not: false },
-      warning: "You should probably set this"
+      empty: "any",
+      warning: "Includes unranked maps",
     },
   ],
 };
 
 export const sections: Section[] = [
   {
-    title: 'Difficulty Info',
+    title: "Difficulty",
     items: [
-      {
-        type: InputType.MIN_MAX,
-        key: "Stars",
-        label: "Stars",
-        defaultValue: [-1, -1],
-        step: 0.01
-      },
-      {
-        type: InputType.MIN_MAX,
-        key: "Bpm",
-        label: "BPM",
-        defaultValue: [-1, -1],
-        step: 0.01
-      },
-      {
-        type: InputType.SLIDER,
-        key: "Cs",
-        label: "CS",
-        min: 0,
-        max: 10,
-        step: 0.1,
-        defaultValue: [0, 10]
-      },
-      {
-        type: InputType.SLIDER,
-        key: "Ar",
-        label: "AR",
-        min: 0,
-        max: 10,
-        step: 0.1,
-        defaultValue: [0, 10]
-      },
-      {
-        type: InputType.SLIDER,
-        key: "Hp",
-        label: "HP",
-        min: 0,
-        max: 10,
-        step: 0.1,
-        defaultValue: [0, 10]
-      },
-      {
-        type: InputType.SLIDER,
-        key: "Od",
-        label: "OD",
-        min: 0,
-        max: 10,
-        step: 0.1,
-        defaultValue: [0, 10]
-      },
+      { type: InputType.MIN_MAX, key: "Stars", label: "Star rating", step: 0.01, unit: "★" },
+      { type: InputType.MIN_MAX, key: "Bpm", label: "BPM", step: 0.01 },
+      { type: InputType.SLIDER, key: "Cs", label: "Circle size", min: 0, max: 10, step: 0.1 },
+      { type: InputType.SLIDER, key: "Ar", label: "Approach rate", min: 0, max: 10, step: 0.1 },
+      { type: InputType.SLIDER, key: "Od", label: "Overall difficulty", min: 0, max: 10, step: 0.1 },
+      { type: InputType.SLIDER, key: "Hp", label: "HP drain", min: 0, max: 10, step: 0.1 },
     ],
   },
   {
-    title: 'Beatmap Info',
+    title: "Beatmap",
     items: [
-      {
-        type: InputType.TEXT,
-        key: "Artist",
-        label: "Artist",
-        defaultValue: "",
-      },
-      {
-        type: InputType.TEXT,
-        key: "Title",
-        label: "Title",
-        defaultValue: "",
-      },
-      {
-        type: InputType.TEXT,
-        key: "Creator",
-        label: "Mapper",
-        defaultValue: "",
-      },
-      {
-        type: InputType.MIN_MAX,
-        key: "HitLength",
-        label: "Length",
-        defaultValue: [-1, -1],
-        step: 1,
-      },
-      {
-        type: InputType.MIN_MAX,
-        key: "MaxCombo",
-        label: "Max Combo",
-        defaultValue: [-1, -1],
-        step: 1
-      }
+      { type: InputType.TEXT, key: "Artist", label: "Artist", placeholder: "Contains..." },
+      { type: InputType.TEXT, key: "Title", label: "Title", placeholder: "Contains..." },
+      { type: InputType.TEXT, key: "Creator", label: "Mapper", placeholder: "Contains..." },
+      { type: InputType.MIN_MAX, key: "HitLength", label: "Drain length", step: 1, unit: "sec" },
+      { type: InputType.MIN_MAX, key: "MaxCombo", label: "Max combo", step: 1 },
     ],
   },
   {
-    title: 'Metadata',
+    title: "Metadata",
     items: [
+      { type: InputType.DROPDOWN, key: "Genre", label: "Genre", options: dropdownMap.get(RuleType.GENRE) ?? [], empty: "any" },
       {
         type: InputType.DROPDOWN,
-        label: "Genre",
-        key: "Genre",
-        options: dropdownMap.get(RuleType.GENRE) ?? [],
-        defaultValue: { option: { value: "any", label: "Any" }, not: false },
-      },
-      {
-        type: InputType.DROPDOWN,
-        label: "Language",
         key: "Language",
+        label: "Language",
         options: dropdownMap.get(RuleType.LANGUAGE) ?? [],
-        defaultValue: { option: { value: "any", label: "Any" }, not: false },
+        empty: "any",
       },
-      {
-        type: InputType.MIN_MAX,
-        label: "Favourites",
-        key: "FavouriteCount",
-        defaultValue: [-1, -1],
-        step: 1
-      },
-      {
-        type: InputType.MIN_MAX,
-        label: "Plays",
-        key: "PlayCount",
-        defaultValue: [-1, -1],
-        step: 1
-      },
-      {
-        type: InputType.MIN_MAX,
-        label: "Passes",
-        key: "PassCount",
-        defaultValue: [-1, -1],
-        step: 1
-      },
-      {
-        type: InputType.TEXT,
-        label: "Source",
-        key: "Source",
-        defaultValue: "",
-      },
-      {
-        type: InputType.TEXT,
-        label: "Tags",
-        key: "Tags",
-        defaultValue: "",
-      },
+      { type: InputType.MIN_MAX, key: "FavouriteCount", label: "Favourites", step: 1 },
+      { type: InputType.MIN_MAX, key: "PlayCount", label: "Play count", step: 1 },
+      { type: InputType.MIN_MAX, key: "PassCount", label: "Pass count", step: 1 },
+      { type: InputType.TEXT, key: "Source", label: "Source", placeholder: "Contains..." },
+      { type: InputType.TEXT, key: "Tags", label: "Tags", placeholder: "Contains..." },
     ],
   },
   {
-    title: 'Special',
+    title: "Special",
     items: [
       {
         type: InputType.DROPDOWN,
         key: "Archetype",
-        label: "Archetype",
-        options: dropdownMap.get(RuleType.TOURNAMENT) ?? [],
-        defaultValue: { option: { value: "None", label: "None" }, not: false },
+        label: "Tournament slot",
+        options: [option(RuleType.TOURNAMENT, "None"), ...(dropdownMap.get(RuleType.TOURNAMENT) ?? []).filter((o) => o.value !== "None")],
+        empty: "None",
       },
-      {
-        type: InputType.SWITCH,
-        key: "Farm",
-        label: "Farm",
-        category: "Special",
-        defaultValue: undefined
-      },
-      {
-        type: InputType.SWITCH,
-        key: "Stream",
-        label: "Stream",
-        category: "Special",
-        defaultValue: undefined
-      },
-      {
-        type: InputType.SWITCH,
-        key: "RankedMapper",
-        label: "Ranked Mapper",
-        category: "Special",
-        defaultValue: undefined
-      }
+      { type: InputType.SWITCH, key: "Farm", label: "Farm maps" },
+      { type: InputType.SWITCH, key: "Stream", label: "Stream maps" },
+      { type: InputType.SWITCH, key: "RankedMapper", label: "By a ranked mapper" },
     ],
   },
-]
+];
