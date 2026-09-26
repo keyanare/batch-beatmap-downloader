@@ -1,36 +1,17 @@
-import {
-  ipcRenderer,
-} from "electron";
-import { BeatmapDetails, DownloadDetails, QueryOrder } from "../models/api";
+import { BeatmapDetails } from "../models/api";
+import { QueryOrder, SearchSummary } from "../models/ipc";
+import { Metrics } from "../models/metrics";
 import { Node } from "../models/filter";
-import { Metrics, MetricsV2 } from "../models/metrics";
-import { handleGenericError } from "./main";
+import { invoke } from "./invoke";
 
-export const handleQuery = async (node: Node, limit?: number, order?: QueryOrder) => {
-  try {
-    const res = (await ipcRenderer.invoke(
-      "query",
-      node,
-      limit,
-      order
-    )) as DownloadDetails;
-    return res;
-  } catch (e) {
-    return handleGenericError(e);
-  }
-};
-
-export const handleGetBeatmapDetails = async (page: number, pageSize: number) => {
-  try {
-    const res = (await ipcRenderer.invoke(
-      "get-beatmap-details",
-      page,
-      pageSize
-    )) as BeatmapDetails[];
-    return res;
-  } catch (e) {
-    return handleGenericError(e);
-  }
+export interface ResultPage {
+  beatmaps: BeatmapDetails[];
+  owned: number[];
 }
 
-export const handleGetMetrics = () => ipcRenderer.invoke("get-metrics") as Promise<[boolean, MetricsV2]>
+export const queryBridge = {
+  search: (node: Node, name: string, limit?: number, order?: QueryOrder) =>
+    invoke<SearchSummary>("search:query", node, name, limit, order),
+  getResultPage: (id: string, page: number, pageSize: number) => invoke<ResultPage>("search:page", id, page, pageSize),
+  getMetrics: () => invoke<Metrics | null>("server:metrics"),
+};

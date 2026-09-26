@@ -1,18 +1,14 @@
-import { TempData } from "../models/ipc";
-import { SettingType } from "../models/settings";
-import {
-  ipcRenderer,
-} from "electron";
-import { SettingsObject } from "../global";
+import { AppSettings, DetectedPaths, LibraryStatus, MissingMaps } from "../models/ipc";
+import { invoke, subscribe } from "./invoke";
 
-export const handleSetSetting = <T extends keyof SettingType>(name: T, ...args: Parameters<SettingType[T]>): ReturnType<SettingType[T]> => {
-  return ipcRenderer.invoke("set-setting", name, ...args) as ReturnType<SettingType[T]>
-}
+export const settingsBridge = {
+  getSettings: () => invoke<AppSettings>("settings:get"),
+  updateSettings: (patch: Partial<AppSettings>) => invoke<AppSettings>("settings:update", patch),
+  detectPaths: () => invoke<DetectedPaths>("settings:detect"),
 
-export const handleGetVersion = () => ipcRenderer.invoke("get-version") as Promise<string>;
-export const handleGetSettings = () => ipcRenderer.invoke("get-settings") as Promise<SettingsObject>;
-export const handleSetSettings = (settings: SettingsObject) => ipcRenderer.invoke("set-settings", settings);
-export const handleCheckValidPath = () => ipcRenderer.invoke("check-valid-path");
-export const handleLoadBeatmaps = () => ipcRenderer.invoke("load-beatmaps") as Promise<number[]>;
-export const handleGetTempData = () => ipcRenderer.invoke("get-temp-data") as Promise<TempData>;
-export const handleResetTempPath = () => ipcRenderer.invoke("reset-temp-path") as Promise<void>;
+  getLibrary: () => invoke<LibraryStatus>("library:status"),
+  processPending: () => invoke<void>("library:process-pending"),
+  discardPendingCollections: () => invoke<void>("library:discard-collections"),
+  findMissingMaps: () => invoke<MissingMaps>("library:missing"),
+  onLibrary: (callback: (status: LibraryStatus) => void) => subscribe("library:update", callback),
+};
