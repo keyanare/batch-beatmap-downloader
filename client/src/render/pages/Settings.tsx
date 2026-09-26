@@ -75,12 +75,12 @@ export const SettingsPage = () => {
 
       <Card title="About" icon={Info}>
         <div className="text-[13px] leading-6 text-fg-muted">
-          Batch Beatmap Downloader v{version}, made by nzbasic. Beatmaps are served from the Batch Beatmap Downloader
-          server, not from osu! itself.
+          Batch Beatmap Downloader v{version}, created by nzbasic, with osu!lazer support from keyanare&apos;s fork.
+          Beatmaps are served from nzbasic&apos;s Batch Beatmap Downloader server, not from osu! itself.
         </div>
         <Divider className="my-4" />
         <div className="flex gap-2">
-          <Button onClick={() => window.electron.openExternal("https://github.com/nzbasic/batch-beatmap-downloader")}>
+          <Button onClick={() => window.electron.openExternal("https://github.com/keyanare/batch-beatmap-downloader")}>
             GitHub
           </Button>
           <Button onClick={() => window.electron.openExternal("https://discord.gg/3nj6cKzynK")}>Discord</Button>

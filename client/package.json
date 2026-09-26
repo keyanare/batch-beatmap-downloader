@@ -6,7 +6,7 @@
   "main": ".webpack/main",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nzbasic/batch-beatmap-downloader.git"
+    "url": "https://github.com/keyanare/batch-beatmap-downloader.git"
   },
   "scripts": {
     "start": "electron-forge start",

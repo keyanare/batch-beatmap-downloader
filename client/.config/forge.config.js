@@ -25,7 +25,7 @@ module.exports = {
     {
       name: "@electron-forge/publisher-github",
       config: {
-        repository: { owner: "nzbasic", name: "batch-beatmap-downloader" },
+        repository: { owner: "keyanare", name: "batch-beatmap-downloader" },
         authToken: process.env.GITHUB_TOKEN,
         draft: true,
       },
