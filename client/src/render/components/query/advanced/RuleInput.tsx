@@ -1,96 +1,62 @@
-import { useEffect, useState } from "react";
-import Select from "react-select";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import {
-  dropdownMap,
-  inputTypeMap,
-  InputType,
-  RuleType,
-  Rule,
-  DropdownOption,
-} from "../../../../models/rules";
 import React from "react";
+import { dropdownMap, InputType, inputTypeMap, Rule, RuleType } from "../../../../models/rules";
+import { NumberInput, TextInput } from "../../ui/Input";
+import { Select } from "../../ui/Select";
 
-interface PropTypes {
+interface RuleInputProps {
   rule: Rule;
   onChange: (rule: Rule) => void;
 }
 
-const RuleInputDropdown = ({ rule, onChange }: PropTypes) => {
-  const [selectedOption, setSelectedOption] = useState<DropdownOption | null>(null);
+const toDateInput = (ms: string) => {
+  const date = new Date(Number(ms));
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+};
 
-  useEffect(() => {
-    const option = dropdownMap
-      .get(rule.type as RuleType)
-      ?.find((i) => i.value === rule.value);
-    if (!option) {
-      setSelectedOption((dropdownMap.get(rule.type as RuleType) ?? [])[0]);
-    } else {
-      setSelectedOption(option);
+export const RuleInput = ({ rule, onChange }: RuleInputProps) => {
+  const type = rule.type as RuleType;
+
+  switch (inputTypeMap[type]) {
+    case InputType.DROPDOWN: {
+      const options = dropdownMap.get(type) ?? [];
+      return (
+        <Select
+          className="w-44"
+          value={options.find((option) => option.value === rule.value) ?? options[0]}
+          options={options}
+          onChange={(option) => onChange({ ...rule, value: option.value })}
+        />
+      );
     }
-  }, [rule]);
-
-  return (
-    <Select
-      className="w-40 my-react-select-container"
-      classNamePrefix="my-react-select"
-      options={dropdownMap.get(rule.type as RuleType)}
-      value={selectedOption}
-      onChange={(e) => onChange({ ...rule, value: e?.value ?? "" })}
-    />
-  );
-};
-
-const RuleInputNumber = ({ rule, onChange }: PropTypes) => {
-  return (
-    <input
-      className="input-height p-2 w-40 border-gray-300 border rounded focus:border-blue-500"
-      type="number"
-      defaultValue={rule.value}
-      onChange={(e) => onChange({ ...rule, value: e.target.value })}
-    />
-  );
-};
-
-const RuleInputText = ({ rule, onChange }: PropTypes) => {
-  return (
-    <input
-      className="input-height p-2 w-40 border-gray-300 border rounded focus:outline-blue-500"
-      defaultValue={rule.value}
-      onChange={(e) => onChange({ ...rule, value: e.target.value })}
-    />
-  );
-};
-
-const RuleInputDate = ({ rule, onChange }: PropTypes) => {
-  const [selectedDate, setSelectedDate] = useState<Date>(
-    new Date(parseInt(rule.value))
-  );
-  useEffect(() => {
-    onChange({ ...rule, value: selectedDate.getTime().toString() });
-  }, [selectedDate]);
-
-  return (
-    <DatePicker
-      className="input-height p-2 w-40 border-gray-300 border rounded focus:outline-blue-500"
-      selected={new Date(parseInt(rule.value))}
-      onChange={(date) => setSelectedDate(date ?? new Date())}
-    />
-  );
-};
-
-export const RuleInput = ({ rule, onChange }: PropTypes) => {
-  const inputMap = new Map<InputType, JSX.Element>([
-    [InputType.NUMBER, <RuleInputNumber rule={rule} onChange={onChange} />],
-    [InputType.TEXT, <RuleInputText rule={rule} onChange={onChange} />],
-    [InputType.DROPDOWN, <RuleInputDropdown rule={rule} onChange={onChange} />],
-    [InputType.DATE, <RuleInputDate rule={rule} onChange={onChange} />],
-  ]);
-
-  return (
-    <div className="">
-      {inputMap.get(inputTypeMap[rule.type as RuleType])}
-    </div>
-  );
+    case InputType.NUMBER:
+      return (
+        <NumberInput
+          className="w-44"
+          value={rule.value === "" || Number.isNaN(Number(rule.value)) ? null : Number(rule.value)}
+          onChange={(value) => onChange({ ...rule, value: value === null ? "" : String(value) })}
+        />
+      );
+    case InputType.DATE:
+      return (
+        <input
+          type="date"
+          className="field w-44"
+          value={toDateInput(rule.value)}
+          onChange={(event) => {
+            const time = event.target.valueAsNumber;
+            if (!Number.isNaN(time)) onChange({ ...rule, value: String(time) });
+          }}
+        />
+      );
+    default:
+      return (
+        <TextInput
+          className="w-44"
+          value={rule.value}
+          placeholder="Value"
+          onChange={(value) => onChange({ ...rule, value })}
+        />
+      );
+  }
 };

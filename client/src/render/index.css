@@ -1,130 +1,193 @@
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-.input-height {
-  height: 2.35rem;
-}
+@layer base {
+  :root {
+    color-scheme: light;
+    --canvas: 244 244 246;
+    --panel: 250 250 251;
+    --surface: 255 255 255;
+    --surface-raised: 255 255 255;
+    --surface-sunken: 241 241 244;
+    --line: 226 226 231;
+    --fg: 24 24 27;
+    --fg-muted: 82 82 91;
+    --fg-subtle: 133 133 145;
+    --accent: 230 55 135;
+    --accent-strong: 206 38 116;
+    --accent-fg: 255 255 255;
+    --success: 22 163 74;
+    --warning: 217 119 6;
+    --danger: 220 38 38;
+    --info: 37 99 235;
+  }
 
-.main {
-  width: calc(100% - 13rem);
-}
+  .dark {
+    color-scheme: dark;
+    --canvas: 16 16 20;
+    --panel: 21 21 26;
+    --surface: 28 28 34;
+    --surface-raised: 36 36 43;
+    --surface-sunken: 22 22 27;
+    --line: 45 45 54;
+    --fg: 244 244 246;
+    --fg-muted: 180 180 190;
+    --fg-subtle: 124 124 138;
+    --accent: 255 102 171;
+    --accent-strong: 255 79 157;
+    --accent-fg: 255 255 255;
+    --success: 74 222 128;
+    --warning: 251 191 36;
+    --danger: 248 113 113;
+    --info: 96 165 250;
+  }
 
-input {
-  @apply p-2 bg-gray-50 rounded-md shadow-sm border-gray-300 border text-gray-600 w-full focus:outline-none focus:border-monokai-light2 transition ease-in-out placeholder-gray-500;
-  @apply dark:bg-monokai-light2 dark:border dark:border-black dark:placeholder-gray-200 dark:text-gray-200;
-}
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
 
-input:disabled {
-  @apply bg-gray-200 dark:bg-monokai-light2;
-}
+  body {
+    @apply bg-canvas font-sans text-sm text-fg antialiased;
+    font-feature-settings: "cv11", "ss01";
+    overflow: hidden;
+    user-select: none;
+  }
 
-.button {
-  @apply dark:bg-blue-600 dark:hover:bg-blue-700 hover:bg-blue-400 bg-blue-400 text-white cursor-pointer transition-colors
-}
+  input,
+  textarea {
+    user-select: text;
+  }
 
-.box-selector {
-  @apply content-box transition-colors button
-}
+  ::selection {
+    background: rgb(var(--accent) / 0.3);
+  }
 
-.box-selector-off {
-  @apply box-selector button dark:hover:border-black hover:border-gray-600 hover:text-white cursor-pointer text-black dark:text-white !important
-}
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.7);
+    outline-offset: 2px;
+  }
 
-.box-selector-on {
-  @apply box-selector dark:border-black border-gray-600 text-white font-semibold text-lg cursor-default bg-blue-600 !important
-}
+  /* Hide number input spinners, we have our own layout */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 
-.warning {
-  @apply text-red-600 hover:text-red-700 cursor-pointer
-}
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
 
-.shadow-border {
-  @apply shadow-sm rounded-md border dark:border-black dark:bg-zinc-800 border-gray-400 bg-white;
-}
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-.content-box {
-  @apply bg-white dark:bg-monokai-dark p-6 shadow-border w-full;
-}
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--fg-subtle) / 0.35);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
 
-.no-pad {
-  padding: 0 !important;
-}
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--fg-subtle) / 0.6);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
 
-.title {
-  @apply text-gray-900 text-lg font-semibold dark:text-gray-100;
-}
+  ::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+  }
 
-.subtitle {
-  @apply text-gray-500 dark:text-gray-200;
-}
-
-.label {
-  @apply block text-sm leading-5 font-medium dark:text-gray-200 text-gray-700;
-}
-
-.rc-slider-rail {
-  @apply dark:bg-monokai-light2
-}
-
-.rc-slider-handle {
-  @apply dark:border-sky-600
-}
-
-.rc-slider-track {
-  @apply dark:bg-sky-600
+  .dark ::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
 }
 
 @layer components {
-  /* .my-react-select-container {
-  } */
-
-  .my-react-select-container .my-react-select__control {
-    @apply bg-gray-50 dark:bg-monokai-light2 rounded-md shadow-sm border border-neutral-300 dark:border-none hover:border-neutral-400;
+  .drag {
+    -webkit-app-region: drag;
   }
 
-  .my-react-select-container .my-react-select__control--is-focused {
-    @apply border-neutral-500 hover:border-neutral-500 dark:bg-monokai-light2 dark:hover:bg-monokai-light2 shadow-none;
+  .no-drag {
+    -webkit-app-region: no-drag;
   }
 
-  .my-react-select-container .my-react-select__menu {
-    @apply bg-neutral-100 dark:bg-monokai-light2 border border-neutral-300 dark:border-monokai-border;
+  .field {
+    @apply h-9 w-full rounded-lg border border-line bg-surface-sunken px-3 text-sm text-fg placeholder:text-fg-subtle transition-colors;
+    @apply hover:border-fg-subtle/50 focus:border-accent/70 focus:outline-none focus:ring-2 focus:ring-accent/20;
+    @apply disabled:cursor-not-allowed disabled:opacity-60;
   }
 
-  .my-react-select-container .my-react-select__option {
-    @apply text-neutral-600 dark:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-monokai-light2 dark:hover:bg-monokai-dark;
-  }
-  /* .my-react-select-container .my-react-select__option--is-focused {
-    @apply bg-neutral-200 dark:bg-neutral-800;
-  } */
-
-  .my-react-select-container .my-react-select__indicator-separator {
-    @apply bg-neutral-400;
+  .label {
+    @apply text-xs font-medium text-fg-muted;
   }
 
-  .my-react-select-container .my-react-select__input-container,
-  .my-react-select-container .my-react-select__placeholder,
-  .my-react-select-container .my-react-select__single-value {
-    @apply text-neutral-600 dark:text-neutral-200;
+  .kbd {
+    @apply rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-2xs text-fg-muted;
   }
+}
 
-  /* width */
-  ::-webkit-scrollbar {
-    width: 10px;
-  }
+/* rc-slider */
+.rc-slider {
+  padding: 8px 0;
+  height: 20px;
+}
 
-  /* Track */
-  ::-webkit-scrollbar-track {
-    @apply dark:bg-monokai-light bg-stone-200;
-  }
+.rc-slider-rail {
+  background: rgb(var(--line));
+  height: 4px;
+}
 
-  /* Handle */
-  ::-webkit-scrollbar-thumb {
-    @apply dark:bg-monokai-dark bg-monokai-light;
-  }
+.rc-slider-track {
+  background: rgb(var(--accent));
+  height: 4px;
+}
 
-  /* Handle on hover */
-  ::-webkit-scrollbar-thumb:hover {
-    background: #555;
-  }
+.rc-slider-handle {
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: 2px solid rgb(var(--accent));
+  background: rgb(var(--surface-raised));
+  opacity: 1;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.rc-slider-handle:hover,
+.rc-slider-handle:active,
+.rc-slider-handle-dragging.rc-slider-handle-dragging.rc-slider-handle-dragging {
+  border-color: rgb(var(--accent-strong));
+  box-shadow: 0 0 0 5px rgb(var(--accent) / 0.2);
+}
+
+.rc-slider-handle:focus-visible {
+  box-shadow: 0 0 0 5px rgb(var(--accent) / 0.3);
+  outline: none;
+}
+
+/* react-toastify */
+.Toastify__toast-container {
+  --toastify-toast-min-height: 48px;
+  --toastify-font-family: "Inter Variable", system-ui, sans-serif;
+  width: 360px;
+}
+
+.Toastify__toast {
+  @apply rounded-xl border border-line bg-surface-raised text-sm text-fg shadow-pop;
+  padding: 10px 14px;
+}
+
+.Toastify__close-button {
+  @apply text-fg-subtle;
+  opacity: 1;
+}
+
+.Toastify__progress-bar--wrp {
+  opacity: 0.6;
 }

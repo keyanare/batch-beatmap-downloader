@@ -1,52 +1,49 @@
-import React, {
-  useState, createContext, useEffect, PropsWithChildren, useContext,
-} from 'react';
-import { MetricsV2 } from '../../models/metrics';
+import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Metrics } from "../../models/metrics";
 
-export interface Status {
-  online: boolean
-  metrics: MetricsV2 | null
-  loading: boolean
-  collectMetrics: () => void
+interface StatusContextValue {
+  online: boolean;
+  loading: boolean;
+  metrics: Metrics | null;
+  refresh: () => Promise<void>;
 }
 
-const defaultContext: Status = {
-  online: false,
-  metrics: null,
-  loading: true,
-  collectMetrics: () => null,
-};
+const StatusContext = createContext<StatusContextValue | null>(null);
 
-export const StatusContext = createContext<Status>(defaultContext);
+const POLL_INTERVAL = 60_000;
 
-const StatusProvider: React.FC<PropsWithChildren<any>> = ({ children }) => {
+const StatusProvider = ({ children }: PropsWithChildren) => {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [online, setOnline] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [online, setOnline] = useState(false)
-  const [metrics, setMetrics] = useState<MetricsV2 | null>(null)
+  const inFlight = useRef(false);
 
-  const collectMetrics = () => {
-    window.electron.getMetrics().then(([online, data]) => {
-      setOnline(online);
+  const refresh = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const data = await window.electron.getMetrics();
       setMetrics(data);
-      setLoading(false)
-    });
-  };
-
-  useEffect(() => {
-    collectMetrics();
-    // const interval = setInterval(() => collectMetrics(), 5000);
-    // return () => clearInterval(interval);
+      setOnline(data !== null);
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
+    }
   }, []);
 
-  return (
-    <StatusContext.Provider
-      value={{ online, metrics, loading, collectMetrics }}
-    >
-      {children}
-    </StatusContext.Provider>
-  );
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  return <StatusContext.Provider value={{ online, loading, metrics, refresh }}>{children}</StatusContext.Provider>;
 };
 
-export const useStatus = () => useContext(StatusContext)
+export const useStatus = () => {
+  const context = useContext(StatusContext);
+  if (!context) throw new Error("useStatus must be used inside StatusProvider");
+  return context;
+};
 
 export default StatusProvider;

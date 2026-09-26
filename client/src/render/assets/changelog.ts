@@ -9,6 +9,53 @@ export interface ChangeLogItem {
 
 export const changeLog: ChangeLogItem[] = [
   {
+    version: "1.4.0",
+    date: 1790467200000,
+    changes: [
+      {
+        title: "osu!lazer",
+        changes: [
+          "Added osu!lazer support, maps are imported straight into the game",
+          "Maps you already have in osu!lazer are skipped",
+          "Collections can be created in osu!lazer and checked for missing maps",
+          "Your osu! installs are found automatically",
+        ],
+      },
+      {
+        title: "Downloads",
+        changes: [
+          "New built-in downloader, no extra program is downloaded anymore",
+          "Broken or missing maps are no longer saved as corrupt .osz files",
+          "Failed maps are reported as failed instead of completed, and can be retried",
+          "Unfinished files are cleaned up when pausing",
+          "Downloads wait for the server and resume on their own when it's unreachable",
+          "Live progress, speed and time left",
+          "The temporary folder can be on a different drive than your Songs folder",
+        ],
+      },
+      {
+        title: "Search",
+        changes: [
+          "Beatmap covers, star ratings and owned maps in the results",
+          "The text query understands quotes, farm=yes and more, and no longer changes 'contains' filters into exact matches",
+          "Pasting a filter now updates the advanced mode editor",
+          "Filters with non-English characters can be copied",
+          "Collections can be created from searches where you already have every map",
+        ],
+      },
+      {
+        title: "Client",
+        changes: [
+          "Completely redesigned interface with light and dark themes",
+          "Settings have their own page",
+          "Collections are only written while osu! is closed, so they don't get lost",
+          "Collection names longer than 127 bytes no longer corrupt collection.db",
+          "Updated to a current version of Electron",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.3.0",
     date: 1669446685871,
     changes: [

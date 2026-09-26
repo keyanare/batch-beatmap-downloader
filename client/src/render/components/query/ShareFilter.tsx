@@ -1,47 +1,63 @@
-import React from 'react';
-import { compress, decompress, Compressed } from 'compress-json'
-import { Node, Group } from "../../../models/filter";
-import Button from '../util/Button';
-import { toast } from 'react-toastify';
+import { compress, Compressed, decompress } from "compress-json";
+import { ClipboardPaste, Copy } from "lucide-react";
+import React from "react";
+import { toast } from "react-toastify";
+import { Node } from "../../../models/filter";
+import { Button } from "../ui/Button";
 
-interface PropTypes {
-  tree: Node
-  updateTree: (tree: Group) => void;
+interface ShareFilterProps {
+  tree: Node;
+  onLoad: (tree: Node) => void;
 }
 
-export const ShareFilter = ({ tree, updateTree }: PropTypes) => {
-  const copyTree = async () => {
+// The format is shared between users, keep it compatible with older versions of the app
+const encode = (tree: Node) => window.btoa(unescape(encodeURIComponent(JSON.stringify(compress(tree)))));
+const decode = (text: string) => {
+  const binary = window.atob(text.trim());
+  let json: string;
+  try {
+    json = decodeURIComponent(escape(binary));
+  } catch {
+    // Filters copied by older versions weren't UTF-8 encoded
+    json = binary;
+  }
+  return decompress(JSON.parse(json) as Compressed) as Node;
+};
+
+export const ShareFilter = ({ tree, onLoad }: ShareFilterProps) => {
+  const copy = async () => {
     try {
-      const compressed = compress(tree);
-      const base64 = window.btoa(JSON.stringify(compressed));
-      await navigator.clipboard.writeText(base64)
-      toast.success('Copied to clipboard')
+      await navigator.clipboard.writeText(encode(tree));
+      toast.success("Filter copied, share it with anyone");
     } catch {
-      toast.error('Failed to copy filter to clipboard')
+      toast.error("Couldn't copy the filter");
     }
   };
 
-  const loadTree = async () => {
+  const paste = async () => {
     try {
-      const content = await navigator.clipboard.readText()
-      if (!content) return toast.error('No content in clipboard')
-
-      const string = window.atob(content);
-      const object = JSON.parse(string) as Compressed;
-      const decompressed = decompress(object) as Node;
-      if (!decompressed.group) throw new Error()
-
-      updateTree(decompressed.group);
-      toast.success('Loaded filter from clipboard')
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        toast.error("Your clipboard is empty");
+        return;
+      }
+      const decoded = decode(text);
+      if (!decoded?.group || !Array.isArray(decoded.group.children)) throw new Error("Not a filter");
+      onLoad(decoded);
+      toast.success("Filter loaded from clipboard");
     } catch {
-      toast.error('Failed to load filter from clipboard')
+      toast.error("That doesn't look like a copied filter");
     }
   };
 
   return (
-    <div className="flex gap-2">
-      <Button onClick={copyTree}>Copy Filter</Button>
-      <Button onClick={loadTree}>Paste Filter</Button>
-    </div>
-  )
+    <>
+      <Button variant="ghost" size="sm" icon={Copy} onClick={copy}>
+        Copy filter
+      </Button>
+      <Button variant="ghost" size="sm" icon={ClipboardPaste} onClick={paste}>
+        Paste
+      </Button>
+    </>
+  );
 };

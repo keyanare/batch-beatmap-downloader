@@ -1,54 +1,45 @@
-import React from "react"
-import Slider from 'rc-slider'
-import 'rc-slider/assets/index.css';
-import { Input } from "../../util/Input";
-import is_number from "is-number";
+import Slider from "rc-slider";
+import React, { useEffect, useState } from "react";
 import { TInputItemSlider } from "../../../../models/simple";
-import { TInputItemProps } from "./InputItem";
+import { Field } from "./InputItem";
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-const createSliderWithTooltip = Slider.createSliderWithTooltip;
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-const Range = createSliderWithTooltip(Slider.Range);
+interface SliderInputProps {
+  item: TInputItemSlider;
+  value: [number, number];
+  onChange: (value: [number, number]) => void;
+}
 
-export const SliderInput: React.FC<TInputItemProps<TInputItemSlider>> = ({ label, value, onChange, min, max, step }) => {
-  const updateValue = (newValue: string, index: number) => {
-    // todo handle x.
-    if (is_number(newValue)) {
-      const number = parseFloat(newValue)
-      if (number > max || number < min) return
-      const newValues = [number, value[1-index]]
-      if (index === 1) newValues.reverse()
-      onChange(newValues)
-    }
-  }
+const format = (value: number) => (Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1));
+
+export const SliderInput = ({ item, value, onChange }: SliderInputProps) => {
+  // Local while dragging, the filter only updates once the handle is released
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  const [min, max] = draft;
+  const active = min > item.min || max < item.max;
 
   return (
-    <div className="flex items-center w-full">
-      <span className="min-w-[8rem] label">{label}</span>
-      <div className="flex items-center gap-4 w-full">
-        <div className="w-16">
-          <Input
-            className="p-1 px-2"
-            value={value[0].toString()}
-            onChange={(value) => updateValue(value, 0)}
-          />
-        </div>
-        <Range
-          value={value}
-          onChange={onChange}
-          min={min}
-          max={max}
-          step={step}
+    <Field
+      label={item.label}
+      hint={
+        <span className={active ? "text-2xs font-semibold tabular-nums text-accent" : "text-2xs tabular-nums text-fg-subtle"}>
+          {active ? `${format(min)} – ${format(max)}` : "Any"}
+        </span>
+      }
+    >
+      <div className="flex h-9 items-center px-2">
+        <Slider
+          range
+          min={item.min}
+          max={item.max}
+          step={item.step}
+          value={draft}
+          allowCross={false}
+          onChange={(next) => setDraft(next as [number, number])}
+          onChangeComplete={(next) => onChange(next as [number, number])}
         />
-        <div className="w-16">
-          <Input
-            className="p-1 px-2"
-            value={value[1].toString()}
-            onChange={(value) => updateValue(value, 1)}
-          />
-        </div>
       </div>
-    </div>
-  )
-}
+    </Field>
+  );
+};

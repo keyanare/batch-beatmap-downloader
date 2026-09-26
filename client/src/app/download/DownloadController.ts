@@ -1,259 +1,343 @@
-import { BeatmapDownloadV2, DownloadUpdateV2 } from './../../models/api-v2';
-import axios from "axios";
-import { DownloadStatus } from "../../models/api";
-import { serverUri } from "../ipc/main";
-import { shouldBeClosed, window } from "../../main";
-import { getDownloadPath, getMaxConcurrentDownloads, getSongsFolder, getTempPath } from "../settings";
-import { beatmapIds, loadBeatmaps } from "../beatmaps";
-import { clientId, setDownloadStatus } from "./settings";
-import { addCollection } from "../collection/collection";
-import { emitStatus } from "./downloads";
-import { DownloadIPC } from './ipc';
-import settings from 'electron-settings';
-import fs from 'fs';
-import path from 'path';
+import log from "electron-log/main";
+import { DownloadInfo, DownloadState } from "../../models/ipc";
+import { emitError } from "../events";
+import { getLibrary } from "../library";
+import { Library } from "../library/types";
+import { ping, reportBeatmapDownload, reportDownloadUpdate } from "../server";
+import { getSettings } from "../store";
+import { DownloadError, fetchSet } from "./fetchSet";
 
-enum Status {
-  FINISHED,
-  PAUSED,
-  ERROR
+/** What gets saved to disk. Compatible with the format older versions used. */
+export interface PersistedDownload {
+  id: string;
+  name?: string;
+  createdAt?: number;
+  metricsId?: string;
+  collectionName?: string;
+  all: number[];
+  completed: number[];
+  failed: number[];
+  skipped: number[];
+  totalSize: number;
+  totalProgress: number;
+  force: boolean;
+  /** Size of each set in bytes, when known. */
+  sizes?: Record<string, number>;
 }
 
+export interface DownloadHooks {
+  onChange(controller: DownloadController, important: boolean): void;
+}
+
+const SPEED_WINDOW = 5000;
+const SERVER_RETRY_INTERVAL = 10000;
+
 export class DownloadController {
-  private ids: number[] = [];
-  private force: boolean = false;
-  private hashes: string[] = [];
-  private status: DownloadStatus;
-  private startTime: Date;
-  private downloadedSinceResume = 0;
+  readonly id: string;
+  readonly name: string;
+  readonly createdAt: number;
+  readonly metricsId: string;
+  readonly force: boolean;
+  readonly collectionName?: string;
 
-  private concurrentDownloads: number = 3;
-  private id: string;
-  private toDownload: number[] = [];
-  private interval: NodeJS.Timer;
-  private ipc: DownloadIPC;
+  private readonly all: number[];
+  private readonly completed: number[];
+  private readonly failed: number[];
+  private readonly skipped: number[];
+  private readonly sizes: Record<string, number>;
+  private totalSize: number;
+  private totalProgress: number;
 
-  public constructor(id: string, ids: number[], size: number, force: boolean, hashes: string[]) {
-    this.id = id;
-    this.ids = ids
-    this.force = force;
-    this.hashes = hashes;
+  private state: DownloadState = "paused";
+  private error?: string;
 
-    this.status = {
-      id,
-      paused: true,
-      all: ids,
-      completed: [],
-      failed: [],
-      skipped: [],
-      totalSize: size,
-      totalProgress: 0,
-      force: force,
-      speed: 0,
+  // Every run gets a generation, so workers of a previous run know to stop.
+  private generation = 0;
+  private running: Promise<void> | null = null;
+  private queue: number[] = [];
+  private readonly active = new Map<number, AbortController>();
+  private readonly inFlight = new Map<number, number>();
+  private samples: { time: number; bytes: number }[] = [];
+  private resumedAt = 0;
+  private networkFailures = 0;
+  private serverTimer: NodeJS.Timeout | null = null;
+
+  constructor(data: PersistedDownload, private readonly hooks: DownloadHooks) {
+    this.id = data.id;
+    this.name = data.name || "Beatmap download";
+    this.createdAt = data.createdAt ?? Date.now();
+    this.metricsId = data.metricsId ?? data.id;
+    this.force = data.force;
+    this.collectionName = data.collectionName;
+    this.all = [...data.all];
+    this.completed = [...data.completed];
+    this.failed = [...data.failed];
+    this.skipped = [...data.skipped];
+    this.sizes = { ...(data.sizes ?? {}) };
+    this.totalSize = data.totalSize;
+    this.totalProgress = data.totalProgress;
+    if (this.remaining === 0) this.state = "finished";
+  }
+
+  get remaining() {
+    return Math.max(0, this.all.length - this.completed.length - this.failed.length - this.skipped.length);
+  }
+
+  get isFinished() {
+    return this.state === "finished";
+  }
+
+  /** Set ids this download still has to download. */
+  pendingIds() {
+    const done = new Set([...this.completed, ...this.failed, ...this.skipped]);
+    return this.all.filter((id) => !done.has(id));
+  }
+
+  toPersisted(): PersistedDownload {
+    return {
+      id: this.id,
+      name: this.name,
+      createdAt: this.createdAt,
+      metricsId: this.metricsId,
+      collectionName: this.collectionName,
+      all: this.all,
+      completed: this.completed,
+      failed: this.failed,
+      skipped: this.skipped,
+      totalSize: this.totalSize,
+      totalProgress: this.totalProgress,
+      force: this.force,
+      sizes: this.sizes,
     };
   }
 
-  public getId() {
-    return this.id
+  info(): DownloadInfo {
+    let inFlight = 0;
+    for (const bytes of this.inFlight.values()) inFlight += bytes;
+
+    return {
+      id: this.id,
+      name: this.name,
+      createdAt: this.createdAt,
+      state: this.state,
+      error: this.error,
+      force: this.force,
+      collectionName: this.collectionName,
+      total: this.all.length,
+      completed: this.completed.length,
+      failed: this.failed.length,
+      skipped: this.skipped.length,
+      totalBytes: Math.max(this.totalSize, this.totalProgress + inFlight),
+      downloadedBytes: this.totalProgress + inFlight,
+      speed: this.state === "running" ? this.speed() : 0,
+    };
   }
 
-  public getIds() {
-    return this.ids
+  private changed(important = false) {
+    this.hooks.onChange(this, important);
   }
 
-  public removeIds(ids: number[]) {
-    this.ids = this.ids.filter(id => !ids.includes(id))
-    this.status.all = this.ids;
-    setDownloadStatus(this)
-    emitStatus();
+  private addSample(bytes: number) {
+    const now = Date.now();
+    // Samples are grouped into 100ms buckets, progress callbacks come in for every network chunk
+    const last = this.samples[this.samples.length - 1];
+    if (last && now - last.time < 100) last.bytes += bytes;
+    else this.samples.push({ time: now, bytes });
+    while (this.samples.length && now - this.samples[0].time > SPEED_WINDOW) this.samples.shift();
   }
 
-  public async createCollection(collectionName: string) {
-    await addCollection(this.hashes, collectionName);
+  private speed() {
+    const now = Date.now();
+    let total = 0;
+    for (const sample of this.samples) if (now - sample.time <= SPEED_WINDOW) total += sample.bytes;
+    const window = Math.min(SPEED_WINDOW, Math.max(1000, now - this.resumedAt));
+    return (total / window) * 1000;
   }
 
-  public setStatus(status: DownloadStatus): void {
-    this.status = status;
+  /** Whether the download should carry on by itself the next time the app starts. */
+  get shouldResumeOnStart() {
+    return this.state === "running" || this.state === "waiting";
   }
 
-  public getStatus(): DownloadStatus {
-    return this.status;
-  }
+  async resume() {
+    if (this.state === "running" || this.state === "finished") return;
+    this.clearServerTimer();
 
-  public setConcurrentDownloads(number: number) {
-    this.concurrentDownloads = number;
-  }
+    const generation = ++this.generation;
+    this.state = "running";
+    this.error = undefined;
+    this.changed(true);
 
-  public async resume() {
-    this.ipc = new DownloadIPC();
-    this.startTime = new Date();
-    this.downloadedSinceResume = 0;
-    this.status.paused = false
-    emitStatus()
+    // Let a previous run finish cleaning up before starting over
+    if (this.running) await this.running;
+    if (generation !== this.generation || this.state !== "running") return;
 
-    this.concurrentDownloads = await getMaxConcurrentDownloads()
-    this.updateDownload("resume")
-
-    await loadBeatmaps();
-    const newIds = this.ids.filter((id) => {
-      return (
-        !this.status.completed.includes(id) &&
-        !this.status.skipped.includes(id) &&
-        !this.status.failed.includes(id)
-      );
+    reportDownloadUpdate(this.metricsId, "resume");
+    this.running = this.run(generation).finally(() => {
+      if (this.generation === generation) this.running = null;
     });
-
-    const skipped: number[] = []
-    this.toDownload = newIds.filter(id => {
-      if (this.force) return true;
-      const hasMap = beatmapIds.has(id)
-      if (hasMap) skipped.push(id)
-      return !hasMap
-    })
-
-    if (!this.status.skipped.length) this.status.skipped = skipped
-
-    const downloads: Promise<Status | (() => Promise<void>)>[] = []
-    for (let i = 0; i < this.concurrentDownloads; i++) {
-      downloads.push(this.downloadBeatmapSet(i))
-    }
-
-    const results = await Promise.all(downloads)
-
-    for (const result of results) {
-      if (result === Status.FINISHED) {
-        // this prevents failed downloads not adding to the progress bar
-        this.status.totalProgress = this.status.totalSize;
-        emitStatus()
-      }
-    }
-
-    if (!this.status.paused) this.updateDownload("delete")
-    await setDownloadStatus(this)
-    if (this.ipc) this.ipc.close();
-
-    const enabled = await settings.get("temp") as boolean
-    const autoTemp = await settings.get("autoTemp") as boolean
-    if (enabled && autoTemp) await this.moveTempFiles();
   }
 
-  private async moveTempFiles() {
-    const tempPath = await getTempPath();
-    const songsPath = await getSongsFolder();
-
-    // move all files in temp path to songs path
-    const files = await fs.promises.readdir(tempPath);
-
-    for (const set of this.status.all) {
-      const oldPath = path.join(tempPath, `${set}.osz`);
-      const newPath = path.join(songsPath, `${set}.osz`);
-      await fs.promises.rename(oldPath, newPath)
-    }
-
-    await Promise.all(files.map(file => {
-      if (!file.endsWith(".osz")) return
-
-      const setId = parseInt(file.split(".osz")[0])
-      if (!this.status.all.includes(setId)) return
-
-      const oldPath = path.join(tempPath, file);
-      const newPath = path.join(songsPath, file);
-      return fs.promises.rename(oldPath, newPath);
-    })).catch(err => {
-      window?.webContents.send("error", err);
-    })
+  pause(error?: string, notifyServer = true) {
+    if (this.state !== "running" && this.state !== "waiting") return;
+    this.clearServerTimer();
+    this.generation++;
+    this.state = "paused";
+    this.error = error;
+    for (const controller of this.active.values()) controller.abort();
+    if (notifyServer) reportDownloadUpdate(this.metricsId, "pause");
+    this.changed(true);
   }
 
-  private async postData(url: string, body: unknown) {
-    try {
-      await axios.post(url, body);
-    } catch(err) {
-      if (err instanceof Error) {
-        this.handleServerError(err)
-      }
-    }
+  /** Stops everything, for when the download is deleted or the app is closing. */
+  async stop() {
+    this.pause(undefined, false);
+    if (this.running) await this.running;
   }
 
-  public updateDownload(type: DownloadUpdateV2['Type']) {
-    this.postData(`${serverUri}/v2/metrics/download/update`, {
-      Client: clientId,
-      Id: this.id,
-      Type: type,
-    } as DownloadUpdateV2)
+  retryFailed() {
+    if (!this.failed.length) return;
+    for (const id of this.failed) this.totalSize += this.sizes[id] ?? 0;
+    this.failed.length = 0;
+    // Restart so the retried sets end up in the queue
+    if (this.state === "running" || this.state === "waiting") this.pause(undefined, false);
+    if (this.state === "finished") this.state = "paused";
+    this.changed(true);
+    this.resume();
   }
 
-  public pause() {
-    this.status.paused = true
-    emitStatus()
-    this.updateDownload("pause")
-    if (this.ipc) this.ipc.close();
+  private isCurrent(generation: number) {
+    return this.generation === generation && this.state === "running";
   }
 
-  public getDownloadSpeed() {
-    const elapsed = new Date().getTime() - this.startTime.getTime();
-    return (this.downloadedSinceResume / 1024 / 1024) / (elapsed / 1000);
-  }
-
-  private handleServerError(err: Error) {
-    if (err.message.includes("502")) {
-      this.pause()
-      window?.webContents.send("error", "Server is down");
-      window?.webContents.send("server-down", true)
-
-      this.interval = setInterval(() => {
-        axios.get(`${serverUri}/api`).then(res => {
-          if (res.status >= 200 && res.status <= 299) {
-            window?.webContents.send("server-down", false)
-            this.resume()
-            clearInterval(this.interval)
-          }
-        })
-      }, 1000)
-    }
-  }
-
-  private getNextSetId() {
-    return this.toDownload.shift()
-  }
-
-  private async downloadBeatmapSet(index: number): Promise<Status | (() => Promise<void>)> {
-    if (shouldBeClosed) return Status.PAUSED
-    if (this.status.paused) return Status.PAUSED
-
-    const setId = this.getNextSetId()
-    if (setId === undefined) return Status.FINISHED
-    const path = await getDownloadPath()
+  private async run(generation: number) {
+    let library: Library;
+    let dir: string;
+    let owned: Set<number>;
 
     try {
-      const before = new Date();
-      const res = await this.ipc.download(setId.toString(), path, index)
-      const after = new Date();
-      const difference = after.getTime() - before.getTime();
+      library = await getLibrary();
+      const problem = await library.validate();
+      if (problem) throw new Error(problem);
+      dir = await library.downloadDir();
+      owned = this.force ? new Set() : await library.ownedSetIds();
+    } catch (error) {
+      if (this.isCurrent(generation)) this.pause((error as Error).message);
+      return;
+    }
+    if (!this.isCurrent(generation)) return;
 
-      beatmapIds.add(setId);
-      this.status.completed.push(setId);
-      this.status.totalProgress += res.Size;
-      this.downloadedSinceResume += res.Size
-
-      const speed = this.getDownloadSpeed()
-      this.status.speed = speed
-
-      this.postData(`${serverUri}/v2/metrics/download/beatmap`, {
-        Client: clientId,
-        Id: this.id,
-        SetId: setId.toString(),
-        Time: difference / Math.max(this.concurrentDownloads, 1)
-      } as BeatmapDownloadV2);
-    } catch (err) {
-      console.log(setId, 'failed')
-      this.status.failed.push(setId);
-
-      if (err instanceof Error) {
-        this.handleServerError(err)
+    this.queue = [];
+    for (const id of this.pendingIds()) {
+      if (owned.has(id)) {
+        this.skipped.push(id);
+        this.totalSize -= this.sizes[id] ?? 0;
+      } else {
+        this.queue.push(id);
       }
     }
 
-    emitStatus()
-    return this.downloadBeatmapSet(index)
+    this.samples = [];
+    this.resumedAt = Date.now();
+    this.networkFailures = 0;
+    this.changed(true);
+
+    const concurrency = (await getSettings()).maxConcurrentDownloads;
+    const workers = Array.from({ length: concurrency }, () => this.worker(generation, dir, library, concurrency));
+    await Promise.all(workers);
+
+    if (!this.isCurrent(generation) || this.remaining > 0) return;
+
+    this.state = "finished";
+    this.totalSize = this.totalProgress;
+    reportDownloadUpdate(this.metricsId, "delete");
+    this.changed(true);
+
+    try {
+      await library.onDownloadsFinished();
+    } catch (error) {
+      emitError((error as Error).message);
+    }
+  }
+
+  private async worker(generation: number, dir: string, library: Library, concurrency: number) {
+    while (this.isCurrent(generation)) {
+      const setId = this.queue.shift();
+      if (setId === undefined) return;
+      await this.download(generation, setId, dir, library, concurrency);
+    }
+  }
+
+  private async download(generation: number, setId: number, dir: string, library: Library, concurrency: number) {
+    const controller = new AbortController();
+    this.active.set(setId, controller);
+    const started = Date.now();
+
+    try {
+      const { file, bytes } = await fetchSet(setId, dir, {
+        signal: controller.signal,
+        onProgress: (received) => {
+          const previous = this.inFlight.get(setId) ?? 0;
+          this.inFlight.set(setId, received);
+          if (received > previous) this.addSample(received - previous);
+          this.changed();
+        },
+      });
+
+      if (this.generation !== generation) return;
+      this.completed.push(setId);
+      this.totalProgress += bytes;
+      this.networkFailures = 0;
+      library.onSetDownloaded(file);
+      reportBeatmapDownload(this.metricsId, setId, (Date.now() - started) / Math.max(concurrency, 1));
+    } catch (error) {
+      if (this.generation !== generation) return;
+      const kind = error instanceof DownloadError ? error.kind : "network";
+      const message = (error as Error).message;
+
+      if (kind === "aborted") return;
+
+      if (kind === "disk") {
+        this.pause(message);
+        return;
+      }
+
+      if (kind === "network" && ++this.networkFailures >= 3 && !(await ping())) {
+        this.waitForServer();
+        return;
+      }
+
+      log.warn(`Beatmap set ${setId} failed: ${message}`);
+      this.failed.push(setId);
+      this.totalSize -= this.sizes[setId] ?? 0;
+    } finally {
+      this.active.delete(setId);
+      this.inFlight.delete(setId);
+      this.changed(true);
+    }
+  }
+
+  /** Pauses while the download server can't be reached, and carries on once it's back. */
+  private waitForServer() {
+    if (this.state !== "running") return;
+    this.generation++;
+    this.state = "waiting";
+    this.error = "Can't reach the download server. Retrying automatically...";
+    for (const controller of this.active.values()) controller.abort();
+    this.changed(true);
+
+    this.serverTimer = setInterval(() => {
+      ping().then((online) => {
+        if (!online || this.state !== "waiting") return;
+        this.clearServerTimer();
+        this.state = "paused";
+        this.resume();
+      });
+    }, SERVER_RETRY_INTERVAL);
+  }
+
+  private clearServerTimer() {
+    if (this.serverTimer) clearInterval(this.serverTimer);
+    this.serverTimer = null;
   }
 }

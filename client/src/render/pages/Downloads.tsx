@@ -1,80 +1,93 @@
-import { Link } from "react-router-dom";
-import React, { useMemo } from "react";
-import { useDownload } from "../context/DownloadProvider";
+import { CircleCheck, Clock, Download, Gauge, Layers, Pause, Play, Search } from "lucide-react";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import { DownloadSummary } from "../components/DownloadSummary";
-import { LinearProgress } from "@mui/material";
-import { useStatus } from "../context/StatusProvider";
+import { PendingNotices } from "../components/LibraryPanel";
+import { Button } from "../components/ui/Button";
+import { PageHeader } from "../components/ui/Card";
+import { EmptyState, Stat } from "../components/ui/Misc";
+import { useDownloads } from "../context/DownloadProvider";
+import { formatBytes, formatDuration, formatNumber, formatSpeed } from "../util/format";
 
 export const Downloads = () => {
-  const { downloads } = useDownload()
-  const { online } = useStatus()
+  const navigate = useNavigate();
+  const { downloads, totals } = useDownloads();
 
-  const [maps, speed, remaining, progress] = useMemo(() => {
-    let maps = 0;
-    let remaining = 0;
-    let speed = 0;
-    for (const download of downloads) {
-      maps += download.all;
-      if (download.speed && !download.paused) speed += download.speed;
-      remaining += download.all - download.completed - download.failed - download.skipped;
-    }
-
-    const progress = maps === 0 ? 0 : (maps - remaining) / maps
-    return [maps, speed, remaining, progress]
-  }, [downloads]);
-
-  if (!online) {
-    return (
-      <div className="content-box">
-        Server connection: <span className="text-red-500">Offline</span>
-      </div>
-    )
-  }
-
-  if (!downloads.length) {
-    return (
-      <div className="content-box">
-        <div className="flex flex-col gap-2">
-          <span className="text-lg font-bold">No downloads found</span>
-          <Link to="/query">
-            <span className="font-medium mt-4 text-blue-500 hover:underline">
-              Go to the beatmap search page to start a download
-            </span>
-          </Link>
-        </div>
-      </div>
-    )
-  }
+  const active = downloads.filter((download) => download.state !== "finished");
+  const finished = downloads.filter((download) => download.state === "finished");
+  const anyPaused = active.some((download) => download.state === "paused");
+  const eta = totals.running && totals.speed > 0 ? formatDuration((totals.bytesLeft / totals.speed) * 1000) : "–";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="content-box flex flex-col">
-        <h1 className="text-lg font-bold mb-4">Download Stats</h1>
-        <div className="flex items-center">
-          <div className="w-44 label">Beatmaps Downloading</div>
-          <span>{maps}</span>
-        </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Downloads"
+        description="Downloads carry on in the background while you use the rest of the app"
+        actions={
+          active.length > 0 && (
+            <>
+              {anyPaused && (
+                <Button icon={Play} onClick={() => window.electron.resumeAll()}>
+                  Resume all
+                </Button>
+              )}
+              {totals.running > 0 && (
+                <Button icon={Pause} onClick={() => window.electron.pauseAll()}>
+                  Pause all
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
 
-        <div className="flex items-center">
-          <div className="w-44 label">Remaining Downloads</div>
-          <span>{remaining}</span>
-        </div>
+      <PendingNotices />
 
-        <div className="flex items-center">
-          <div className="w-44 label">Total Speed</div>
-          <span>{speed.toFixed(2)}MB/s</span>
-        </div>
+      {downloads.length === 0 ? (
+        <EmptyState
+          icon={Download}
+          title="Nothing downloading"
+          description="Search for beatmaps or check your collections for missing maps to start a download."
+          action={
+            <Button variant="primary" icon={Search} onClick={() => navigate("/search")}>
+              Search beatmaps
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          {active.length > 0 && (
+            <div className="grid grid-cols-4 gap-3">
+              <Stat icon={Layers} label="Remaining" value={formatNumber(totals.remaining)} hint={`of ${formatNumber(totals.total)} sets`} />
+              <Stat icon={Gauge} label="Speed" value={formatSpeed(totals.speed)} tone="info" />
+              <Stat icon={Download} label="Left to download" value={formatBytes(totals.bytesLeft)} tone="warning" />
+              <Stat icon={Clock} label="Time left" value={eta} tone="success" />
+            </div>
+          )}
 
-        <div className="w-full mt-4">
-          <LinearProgress
-            value={progress * 100}
-            variant="determinate"
-          />
-        </div>
-      </div>
-      {downloads.map(download => (
-        <DownloadSummary key={download.id} status={download} />
-      ))}
+          <div className="flex flex-col gap-3">
+            {active.map((download) => (
+              <DownloadSummary key={download.id} download={download} />
+            ))}
+          </div>
+
+          {finished.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <div className="mt-2 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-fg-muted">
+                  <CircleCheck size={15} className="text-success" /> Finished
+                </h2>
+                <Button size="sm" variant="ghost" onClick={() => window.electron.clearFinished()}>
+                  Clear
+                </Button>
+              </div>
+              {finished.map((download) => (
+                <DownloadSummary key={download.id} download={download} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
-  )
+  );
 };

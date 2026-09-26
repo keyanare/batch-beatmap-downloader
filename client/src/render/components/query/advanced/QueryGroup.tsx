@@ -1,149 +1,113 @@
-import { FilterRule } from "./Rule";
-import { ConnectorDetails, Group, Node } from "../../../../models/filter";
-import { RuleType, Rule } from "../../../../models/rules";
+import { FolderPlus, Plus, X } from "lucide-react";
+import React from "react";
+import { ConnectorDetails, Group, newId, Node } from "../../../../models/filter";
+import { Rule, RuleType } from "../../../../models/rules";
+import { Button } from "../../ui/Button";
 import { Connector } from "./Connector";
-import React, { useEffect, useState } from "react";
-import { nanoid } from 'nanoid';
-import { cloneDeep } from "lodash";
-import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
-import { stringToColor } from "@davidcmeier/string-to-color";
-import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
+import { FilterRule } from "./Rule";
 
-interface PropTypes {
+interface QueryGroupProps {
   group: Group;
-  id: string;
-  updateParent: (group: Group, id: string) => void;
+  depth?: number;
+  onChange: (group: Group) => void;
+  onRemove?: () => void;
 }
 
-const defaultRule = {
-  id: nanoid(),
-  rule: {
-    type: RuleType.STATUS,
-    value: "ranked",
-    operator: "=",
-    field: "Approved",
-  },
-};
+const depthColors = ["#ff66ab", "#b86bff", "#38bdf8", "#34d399", "#fbbf24"];
 
-const defaultGroup = {
-  id: nanoid(),
-  group: {
-    connector: {
-      type: "AND",
-      not: [],
-    },
-    children: [],
-  },
-};
+const defaultRule = (): Node => ({
+  id: newId(),
+  rule: { type: RuleType.STATUS, value: "ranked", operator: "=", field: "Approved" },
+});
 
-export const QueryGroup = ({ group, id, updateParent }: PropTypes) => {
-  const updateGroup = (child: Group | Rule, childId: string) => {
-    updateParent({
+const withNewIds = (node: Node): Node => ({
+  id: newId(),
+  rule: node.rule ? { ...node.rule } : undefined,
+  group: node.group ? { connector: { ...node.group.connector, not: [] }, children: node.group.children.map(withNewIds) } : undefined,
+});
+
+export const QueryGroup = ({ group, depth = 0, onChange, onRemove }: QueryGroupProps) => {
+  const updateChild = (id: string, update: { rule?: Rule; group?: Group }) =>
+    onChange({
       ...group,
-      children: group.children.map((node) => {
-        if (node.id === childId) {
-          if ("children" in child) {
-            return { ...node, group: child };
-          } else {
-            return { ...node, rule: child };
-          }
-        }
-        return node;
-      }),
-    }, id);
-  };
+      children: group.children.map((child) => (child.id === id ? { ...child, ...update } : child)),
+    });
 
-  const updateConnector = (connector: ConnectorDetails) => {
-    updateParent({
+  const updateConnector = (connector: ConnectorDetails) => onChange({ ...group, connector });
+
+  const removeChild = (id: string) =>
+    onChange({
       ...group,
-      connector,
-    }, id);
+      connector: { ...group.connector, not: group.connector.not.filter((existing) => existing !== id) },
+      children: group.children.filter((child) => child.id !== id),
+    });
+
+  const addRule = () => {
+    // Start from a copy of the last rule, that's usually what people want to tweak
+    const last = [...group.children].reverse().find((child) => child.rule);
+    onChange({ ...group, children: [...group.children, last ? withNewIds(last) : defaultRule()] });
   };
 
-  const getLastRule = () => {
-    const lastRule = group.children.filter((node) => "rule" in node).pop();
-    if (lastRule) {
-      return lastRule;
-    }
-    return defaultRule;
-  };
-
-  const addChild = (child: Node) => {
-    child.id = nanoid();
-    if (child.group) {
-      const rule = cloneDeep(defaultRule);
-      rule.id = nanoid();
-      child.group.children.push(rule);
-    }
-
-    updateParent({
+  const addGroup = () =>
+    onChange({
       ...group,
-      children: [...group.children, child],
-    }, id);
-  };
+      children: [
+        ...group.children,
+        { id: newId(), group: { connector: { type: "AND", not: [] }, children: [defaultRule()] } },
+      ],
+    });
 
-  const removeChild = (childId: string) => {
-    updateParent({
-      ...group,
-      children: group.children.filter((node) => node.id !== childId),
-    }, id);
-  };
+  const color = depthColors[depth % depthColors.length];
 
   return (
-    <div className="flex w-full">
-      <div style={{ backgroundColor: stringToColor(id) }} className="w-2" />
-      <div className="p-4 rounded-l-none border-gray-300 dark:border-monokai-border dark:border-2 dark:border-l-0 border-l-0 border rounded flex items-stretch w-full">
-        <div className="flex flex-col">
-          {group.children.map((child, index) => (
-            <div key={child.id}>
-              {index == 0 ? null : (
-                <Connector id={child.id} details={group.connector} update={updateConnector} />
-              )}
-              {child.group ? (
-                <div className="flex">
-                  <QueryGroup
-                    group={child.group}
-                    id={child.id}
-                    updateParent={(child, id) => updateGroup(child, id)}
-                  />
-                  <RemoveCircleIcon
-                    onClick={() => removeChild(child.id)}
-                    className="text-red-600 hover:text-red-700 hover:cursor-pointer rounded -ml-5 -mt-4 bg-white dark:bg-monokai-dark"
-                    fontSize="large"
-                  />
-                </div>
-              ) : (
-                <div className="flex gap-2 items-center">
-                  <FilterRule
-                    rule={child?.rule??null}
-                    id={child.id}
-                    updateParent={(rule, id) => updateGroup(rule, id)}
-                  />
-                  {(id != "root" || index != 0) && (
-                    <CancelOutlinedIcon
-                      onClick={() => removeChild(child.id)}
-                      className="text-gray-400 dark:text-red-500 dark:hover:text-red-600 hover:cursor-pointer hover:text-red-500"
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-          <div className="flex items-center gap-2 mt-4">
-            <button
-              onClick={() => addChild(cloneDeep(getLastRule()))}
-              className="dark:text-white border-blue-600 text-gray-600 border-2 rounded px-2 py-1 hover:bg-blue-600 hover:text-white font-medium transition duration-150"
-            >
-              + Add Rule
-            </button>
-            <button
-              onClick={() => addChild(cloneDeep(defaultGroup))}
-              className="dark:text-white border-blue-600 text-gray-600 border-2 rounded px-2 py-1 hover:bg-blue-600 hover:text-white font-medium transition duration-150"
-            >
-              + Add Group
-            </button>
-          </div>
+    <div className="relative rounded-xl border border-line bg-surface-sunken/50 py-2 pl-4 pr-2">
+      <div className="absolute bottom-2 left-0 top-2 w-[3px] rounded-full" style={{ backgroundColor: color }} />
+
+      {onRemove && (
+        <div className="absolute right-2 top-2">
+          <Button variant="ghost" size="sm" icon={X} onClick={onRemove} title="Remove group" />
         </div>
+      )}
+
+      <div className="flex flex-col">
+        {group.children.map((child, index) => (
+          <div key={child.id}>
+            {index > 0 && <Connector id={child.id} details={group.connector} update={updateConnector} />}
+            {child.group ? (
+              <div className="pr-1">
+                <QueryGroup
+                  group={child.group}
+                  depth={depth + 1}
+                  onChange={(next) => updateChild(child.id, { group: next })}
+                  onRemove={() => removeChild(child.id)}
+                />
+              </div>
+            ) : child.rule ? (
+              <div className="group/rule flex items-center gap-2 rounded-lg py-1">
+                <FilterRule rule={child.rule} onChange={(rule) => updateChild(child.id, { rule })} />
+                {group.children.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={X}
+                    onClick={() => removeChild(child.id)}
+                    title="Remove rule"
+                    className="opacity-0 transition-opacity focus:opacity-100 group-hover/rule:opacity-100"
+                  />
+                )}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 flex items-center gap-1">
+        <Button variant="ghost" size="sm" icon={Plus} onClick={addRule}>
+          Rule
+        </Button>
+        <Button variant="ghost" size="sm" icon={FolderPlus} onClick={addGroup}>
+          Group
+        </Button>
       </div>
     </div>
   );

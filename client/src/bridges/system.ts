@@ -1,22 +1,12 @@
-import {
-  ipcRenderer,
-  shell,
-  OpenExternalOptions,
-} from "electron";
+import { Notice } from "../models/ipc";
+import { invoke, subscribe } from "./invoke";
 
-export const handleBrowse = () => ipcRenderer.invoke("browse") as Promise<Electron.OpenDialogReturnValue>;
-export const handleOpenUrl = (url: string, options?: OpenExternalOptions) => shell.openExternal(url, options);
-export const handleQuit = () => ipcRenderer.send("quit");
-export const handleListenForErrors = (callback: (error: string) => void) => {
-  ipcRenderer.on("error", (event, error: string) => {
-    callback(error);
-  });
+export const systemBridge = {
+  getVersion: () => invoke<string>("app:version"),
+  getPlatform: () => invoke<NodeJS.Platform>("app:platform"),
+  openExternal: (url: string) => invoke<void>("app:open-external", url),
+  openPath: (path: string) => invoke<void>("app:open-path", path),
+  browseFolder: (title?: string, defaultPath?: string) => invoke<string | null>("app:browse-folder", title, defaultPath),
+  browseFile: (title?: string, defaultPath?: string) => invoke<string | null>("app:browse-file", title, defaultPath),
+  onNotice: (callback: (notice: Notice) => void) => subscribe("app:notice", callback),
 };
-
-export const handleListenForServerDown = (callback: (down: boolean) => void) => {
-  ipcRenderer.on("server-down", (event, down: boolean) => {
-    callback(down);
-  });
-};
-
-export const handleGetPlatform = () => ipcRenderer.invoke("get-platform") as Promise<NodeJS.Platform>;

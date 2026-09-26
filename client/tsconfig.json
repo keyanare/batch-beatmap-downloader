@@ -1,31 +1,46 @@
 {
   "compilerOptions": {
-    "allowJs": true,
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "commonjs",
+    "moduleResolution": "node",
     "jsx": "react-jsx",
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
     "baseUrl": ".",
-    "outDir": "dist",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "typeRoots": ["node_modules/@types"],
-    "paths": {
-      "*": ["node_modules/*"],
-      "@/*": ["./src/*"],
-      "@assets/*": ["./assets/*"],
-      "@containers/*": ["./src/render/containers/*"],
-      "@components/*": ["./src/render/components/*"]
-    }
+    "outDir": "dist"
   },
-  "include": [
-    "src/**/*"
-  ],
+  "include": ["src/**/*"],
+  // Replaced by the 1.4 rewrite and no longer imported anywhere, waiting to be deleted
   "exclude": [
-      "node_modules",
-      "**/*.spec.ts"
+    "src/app/beatmaps.ts",
+    "src/app/collection",
+    "src/app/download/binary.ts",
+    "src/app/download/downloads.ts",
+    "src/app/download/ipc.ts",
+    "src/app/download/settings.ts",
+    "src/app/ipc",
+    "src/app/settings.ts",
+    "src/models/api-v2.ts",
+    "src/models/settings.ts",
+    "src/render/components/BMACButton.tsx",
+    "src/render/components/Browse.tsx",
+    "src/render/components/ChangeLogVersion.tsx",
+    "src/render/components/InvalidPath.tsx",
+    "src/render/components/query/advanced/Beatmap.tsx",
+    "src/render/components/Settings.tsx",
+    "src/render/components/StatusTableRow.tsx",
+    "src/render/components/Temporary.tsx",
+    "src/render/components/util",
+    "src/render/hooks/useTextInput.tsx",
+    "src/render/types",
+    "src/render/util/fileSize.ts",
+    "src/utf8.d.ts"
   ]
 }

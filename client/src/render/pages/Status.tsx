@@ -1,116 +1,103 @@
-import React, { useEffect, useMemo } from "react";
-import ColorScales from "color-scales";
-import { bytesToFileSize } from "../util/fileSize";
-import { CircularProgress } from "@mui/material";
-import { TableHeader } from "../types/table";
-import Table from "../components/util/Table";
-import StatusTableRow from "../components/StatusTableRow";
+import { Activity, CalendarClock, CircleCheck, Download, Gauge, HardDrive, Heart, RefreshCw, Star, Trash, Users } from "lucide-react";
+import React, { useEffect } from "react";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card, PageHeader } from "../components/ui/Card";
+import { EmptyState, Stat } from "../components/ui/Misc";
+import { Progress, Skeleton } from "../components/ui/Progress";
 import { useStatus } from "../context/StatusProvider";
+import { formatBytes, formatDate, formatNumber, formatSpeed } from "../util/format";
 
-const headers: TableHeader[] = [
-  { title: "Total Size", key: "Size" },
-  { title: "Remaining Size", key: "Progress" },
-  { title: "Download Speed", key: "Speed" },
-];
+const Line = ({ icon: Icon, label, value }: { icon: typeof Star; label: string; value: React.ReactNode }) => (
+  <div className="flex items-center gap-3 py-2">
+    <Icon size={15} className="text-fg-subtle" />
+    <span className="flex-1 text-[13px] text-fg-muted">{label}</span>
+    <span className="text-[13px] font-semibold tabular-nums">{value}</span>
+  </div>
+);
 
 export const Status = () => {
-  const { online, metrics, loading, collectMetrics } = useStatus();
+  const { online, loading, metrics, refresh } = useStatus();
 
+  // Live numbers while this page is open
   useEffect(() => {
-    collectMetrics();
-    const interval = setInterval(() => collectMetrics(), 5000);
+    refresh();
+    const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
-  }, [collectMetrics])
+  }, [refresh]);
 
-  const downloadsScale = new ColorScales(0, 50, ["#00ff00", "#ff0000"]);
-  const bandwidthScale = new ColorScales(0, 5000, ["#00ff00", "#ff0000"]);
-
-  const [activeDownloads, currentBandwidth] = useMemo(() => {
-    const currentDownloads = metrics?.Download?.CurrentDownloads ?? []
-    const activeDownloads = currentDownloads.filter((i) => i.Active)
-    const currentBandwidth = metrics?.Download?.CurrentBandwidthUsage ?? 0
-    return [activeDownloads, currentBandwidth]
-  }, [metrics]);
+  const active = (metrics?.Download.CurrentDownloads ?? []).filter((download) => download.Active);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="content-box flex flex-col dark:text-white w-full">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-lg">Server Status</span>
-          {loading ? <CircularProgress size={25} /> : (
-            <span className={`${online ? "text-green-500" : "text-red-500"} font-bold text-lg`}>
-              {online ? "Online" : "Offline"}
-            </span>
-          )}
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Server"
+        description="Live stats from the Batch Beatmap Downloader server, shared by everyone using the app"
+        actions={
+          <>
+            {!loading && (
+              <Badge tone={online ? "success" : "danger"} dot>
+                {online ? "Online" : "Offline"}
+              </Badge>
+            )}
+            <Button size="sm" variant="ghost" icon={RefreshCw} onClick={refresh} />
+          </>
+        }
+      />
+
+      {loading && !metrics ? (
+        <div className="grid grid-cols-3 gap-3">
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
         </div>
-      </div>
-      {online && metrics && (
-        <div className="flex flex-col gap-4">
-          <div className="flex gap-4">
-            <div
-              style={{backgroundColor: downloadsScale.getColor(activeDownloads.length).toHexString()}}
-              className="bg-green-500 rounded shadow w-full h-24 border border-gray-500 dark:border-black"
-            >
-              <div className="text-black flex justify-between items-center w-full h-full px-8">
-                <span className="font-bold text-5xl w-full text-center">{activeDownloads.length}</span>
-                <span className="text-xl w-full font-medium text-center">Active Downloads</span>
-              </div>
-            </div>
-            <div
-              style={{backgroundColor: bandwidthScale.getColor(currentBandwidth / 1e6).toHexString()}}
-              className="bg-red-500 rounded shadow w-full h-24 border border-gray-500 dark:border-black"
-            >
-              <div className="text-black flex justify-between items-center w-full h-full px-8">
-                <div className="flex flex-col items-center w-full">
-                  <span className="font-bold text-3xl">{(currentBandwidth / 1e6).toFixed(0)}MB/s</span>
-                  <span>{(metrics.Download.CurrentBandwidthUsage / 1e6).toFixed(0)}MB/s Avg 1min</span>
-                </div>
-                <span className="text-xl w-full font-medium text-center">Bandwidth Use</span>
-              </div>
-            </div>
+      ) : !metrics ? (
+        <EmptyState icon={Activity} title="The server can't be reached" description="It might be down for maintenance. Downloads resume automatically once it's back." />
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat icon={Users} label="Active downloads" value={formatNumber(active.length)} />
+            <Stat icon={Gauge} label="Bandwidth now" value={formatSpeed(metrics.Download.CurrentBandwidthUsage)} tone="info" />
+            <Stat icon={Activity} label="Average last minute" value={formatSpeed(metrics.Download.AverageSpeedMinute)} tone="success" />
           </div>
 
-          <div className="flex gap-4">
-            <div className="content-box flex flex-col dark:text-white w-full">
-              <div className="flex flex-col gap-2">
-                <span className="font-bold text-lg">Database Status</span>
-                <div className="flex flex-col">
-                  <span>{metrics.Database.NumberStoredRanked} Ranked Beatmaps</span>
-                  <span>{metrics.Database.NumberStoredLoved} Loved Beatmaps</span>
-                  <span>{metrics.Database.NumberStoredUnranked} Unranked Beatmaps</span>
-                  <span>Last Beatmap Added on {new Date(metrics.Database.LastBeatmapAdded).toLocaleDateString()}</span>
-                </div>
+          <div className="grid grid-cols-2 gap-5">
+            <Card title="Database" icon={HardDrive}>
+              <div className="divide-y divide-line">
+                <Line icon={Star} label="Ranked beatmaps" value={formatNumber(metrics.Database.NumberStoredRanked)} />
+                <Line icon={Heart} label="Loved beatmaps" value={formatNumber(metrics.Database.NumberStoredLoved)} />
+                <Line icon={Trash} label="Unranked beatmaps" value={formatNumber(metrics.Database.NumberStoredUnranked)} />
+                <Line icon={CalendarClock} label="Last beatmap added" value={formatDate(metrics.Database.LastBeatmapAdded)} />
               </div>
-            </div>
-
-            <div className="content-box flex flex-col dark:text-white w-full">
-              <div className="flex flex-col gap-2">
-                <span className="font-bold text-lg">Daily Stats</span>
-                <div className="flex flex-col">
-                  <span>{metrics.Download.DailyStats.Maps} Beatmap Sets Downloaded</span>
-                  <span>{bytesToFileSize(metrics.Download.DailyStats.Size)} Downloaded</span>
-                  <span>{metrics.Download.DailyStats.Completed} Completed Downloads</span>
-                  <span>{bytesToFileSize(metrics.Download.DailyStats.Speed)}/s average speed</span>
-                </div>
+            </Card>
+            <Card title="Today" icon={CalendarClock}>
+              <div className="divide-y divide-line">
+                <Line icon={Download} label="Beatmap sets downloaded" value={formatNumber(metrics.Download.DailyStats.Maps)} />
+                <Line icon={HardDrive} label="Data served" value={formatBytes(metrics.Download.DailyStats.Size)} />
+                <Line icon={CircleCheck} label="Downloads completed" value={formatNumber(metrics.Download.DailyStats.Completed)} />
+                <Line icon={Gauge} label="Average speed" value={formatSpeed(metrics.Download.DailyStats.Speed)} />
               </div>
-            </div>
+            </Card>
           </div>
 
-          <div className="content-box no-pad flex flex-col dark:text-white w-full">
-            <div className="flex flex-col gap-2">
-              <span className="font-bold text-lg p-6 pb-2">Current Downloads (All Users)</span>
-              {activeDownloads.length ? (
-                <Table
-                  data={activeDownloads}
-                  headers={headers}
-                  RenderRow={StatusTableRow}
-                />
-              ) : (
-                <span className="font-medium p-6">No active downloads</span>
-              )}
-            </div>
-          </div>
-        </div>
+          <Card title="Downloads in progress" description="Everyone's, anonymously" icon={Activity}>
+            {active.length ? (
+              <div className="flex flex-col gap-3">
+                {active.map((download, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="w-40 shrink-0 text-xs tabular-nums text-fg-muted">
+                      {formatBytes(Math.max(0, download.Size - download.Progress))} left
+                    </div>
+                    <Progress value={download.Size ? download.Progress / download.Size : 0} active />
+                    <div className="w-24 shrink-0 text-right text-xs tabular-nums text-fg-subtle">{formatSpeed(download.Speed)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] text-fg-subtle">Nobody is downloading right now.</p>
+            )}
+          </Card>
+        </>
       )}
     </div>
   );
