@@ -1,51 +1,46 @@
 <h1 align="center">
-  <a href="https://github.com/nzbasic/batch-beatmap-downloader">
-    <img src="https://user-images.githubusercontent.com/54062686/154786704-a8f12c81-1ec3-48e4-a1cb-9f74ed164a43.png" alt="Logo" width="256" height="256">
-  </a>
-
-  
-  Batch Beatmap Downloader (Beta)
+  <img src="docs/logo.svg" alt="Logo" width="128" height="128">
+  <br>
+  Batch Beatmap Downloader
 </h1>
 
-<div align="center">
-  <h3><a href="https://github.com/nzbasic/batch-beatmap-downloader/releases/latest">Download Latest Release</a><h3>
-</div>
+<p align="center">
+  Download thousands of osu! beatmaps at once, straight into <b>osu!stable</b> or <b>osu!lazer</b>.
+</p>
 
 <div align="center">
-<br />
- 
-  
-[![codefactor](https://img.shields.io/codefactor/grade/github/nzbasic/batch-beatmap-downloader?style=flat-square)](https://github.com/nzbasic/batch-beatmap-downloader)
-[![license](https://img.shields.io/github/license/nzbasic/batch-beatmap-downloader?style=flat-square)](LICENSE)
-[![stars](https://img.shields.io/github/stars/nzbasic/batch-beatmap-downloader?style=flat-square)](https://github.com/nzbasic/Collection-Helper)
-[![release](https://img.shields.io/github/v/release/nzbasic/batch-beatmap-downloader?style=flat-square)](https://github.com/nzbasic/Collection-Helper)
-[![downloads](https://img.shields.io/github/downloads/nzbasic/batch-beatmap-downloader/total?style=flat-square)](https://github.com/nzbasic/Collection-Helper)
-[![lastcommit](https://img.shields.io/github/last-commit/nzbasic/batch-beatmap-downloader?style=flat-square)](https://github.com/nzbasic/Collection-Helper)
-  
-[![go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://github.com/golang/go)
+  <h3><a href="https://github.com/keyanare/batch-beatmap-downloader/releases/latest">Download the latest release</a></h3>
+
+[![license](https://img.shields.io/github/license/keyanare/batch-beatmap-downloader?style=flat-square)](LICENSE)
+[![release](https://img.shields.io/github/v/release/keyanare/batch-beatmap-downloader?style=flat-square)](https://github.com/keyanare/batch-beatmap-downloader/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/keyanare/batch-beatmap-downloader/total?style=flat-square)](https://github.com/keyanare/batch-beatmap-downloader/releases)
+[![last commit](https://img.shields.io/github/last-commit/keyanare/batch-beatmap-downloader?style=flat-square)](https://github.com/keyanare/batch-beatmap-downloader/commits)
+
 [![electron](https://img.shields.io/badge/Electron-2B2E3A?style=for-the-badge&logo=electron&logoColor=9FEAF9)](https://github.com/electron/electron)
-[![angular](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://github.com/angular/angular)
+[![react](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://github.com/facebook/react)
 [![typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://github.com/microsoft/TypeScript)
-[![sqlite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)](https://github.com/sqlite/sqlite)
 [![tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://github.com/tailwindlabs/tailwindcss)
+[![go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://github.com/golang/go)
 
-  
-[![coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/nzbasic)
-  
 </div>
+
+> This is a fork of [nzbasic/batch-beatmap-downloader](https://github.com/nzbasic/batch-beatmap-downloader) that adds
+> osu!lazer support, a redesigned interface and a new download engine. Beatmaps still come from nzbasic's
+> Batch Beatmap Downloader server, all credit for it goes to them.
 
 <details open="open">
 <summary>Table of Contents</summary>
 
 - [About](#about)
   - [Screenshots](#screenshots)
+  - [What's new in 1.4.0](#whats-new-in-140)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Usage](#usage)
-    - [Build instructions](#building-yourself-for-devs)
+  - [Installing](#installing)
+  - [osu!lazer](#osulazer)
+  - [Building yourself](#building-yourself)
+- [Project structure](#project-structure)
 - [Contributing](#contributing)
 - [Support](#support)
-- [Donate](#donate)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
 
@@ -55,87 +50,111 @@
 
 ## About
 
-<table>
-<tr>
-<td>
+Batch Beatmap Downloader provides an easy way to download a lot of osu! beatmaps matching some filter criteria.
 
-Batch Beatmap Downloader provides an easy way to download a lot of osu! maps matching some filter criteria. 
-
-The key features of **Batch Beatmap Downloader**:
-
-- Mass download osu beatmaps
-- Included preset filters for ease of use
-- Custom tags on maps to search by (farm, stream)
-- Add downloaded maps to new collections
-
-</td>
-</tr>
-</table>
+- Mass download osu! beatmaps, for osu!stable and osu!lazer
+- Filter by status, mode, star rating, BPM, AR/CS/OD/HP, length, mapper, genre, language and more
+- A simple mode with osu! style search terms (`status=r mode=o stars>=6.5 artist="camellia"`) and an advanced mode with AND / OR / NOT and nested groups
+- Preset filters and shareable filters
+- Custom tags on maps to search by (farm, stream, ranked mapper, tournament slots)
+- Maps you already have are skipped
+- Add downloaded maps to a new or existing collection
+- Download maps that are missing from your collections
+- Pause, resume and retry failed maps; downloads carry on after restarting the app
 
 ### Screenshots
 
-Home
-![Home](https://user-images.githubusercontent.com/54062686/154786856-8cf3f8c3-880a-46b3-b28c-d8a3a6238981.png)
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Home" width="49%">
+  <img src="docs/screenshots/search.png" alt="Search" width="49%">
+  <img src="docs/screenshots/results.png" alt="Search results" width="49%">
+  <img src="docs/screenshots/downloads.png" alt="Downloads" width="49%">
+</p>
 
-Query
-![Query](https://user-images.githubusercontent.com/54062686/154786866-846fa2c5-3280-4ea9-ad60-76ed464fa211.png)
+### What's new in 1.4.0
 
-Dark mode
-![Dark Mode](https://user-images.githubusercontent.com/54062686/154786907-3f6390e4-d6f0-43e9-aa1a-5b49f4637c59.png)
+**osu!lazer support**
 
+- Pick osu!stable or osu!lazer; your game folders are found automatically
+- Downloaded maps are imported straight into osu!lazer, while it's open or the next time it starts
+- Maps you already have in osu!lazer are skipped, collections work too
+
+**Downloads**
+
+- New built-in downloader, no separate program is downloaded anymore
+- Many older files on the download server are stored wrapped in the form data they were uploaded with; the game can't read those. They are now unwrapped automatically, so those maps actually work
+- Server errors are no longer saved as corrupt `.osz` files, and failed maps are reported as failed instead of completed
+- Pausing no longer leaves half written `.osz` files behind
+- Live progress, speed and time left; downloads wait for the server and resume on their own if it goes down
+
+**Everything else**
+
+- Completely redesigned interface with light and dark themes and a proper window title bar
+- Collections are only written while the game is closed, so osu! can't overwrite them, and long collection names no longer corrupt `collection.db`
+- Lots of search fixes: the text query keeps "contains" filters, understands quotes, pasted filters show up in the advanced editor, filters with non-English characters can be copied
+- Updated from Electron 13 to Electron 44
+
+The full list is in the app under "What's new".
 
 ## Getting Started
 
-### Prerequisites
+### Installing
 
-[osu!](https://osu.ppy.sh)
+1. [Download `BBDWindowsSetup.exe` from the latest release](https://github.com/keyanare/batch-beatmap-downloader/releases/latest) and run it. Installing it updates an existing installation of the original app.
+2. You need [osu!](https://osu.ppy.sh), either osu!stable or osu!lazer, and have to have run it at least once.
+3. Choose your game on the home screen. The app usually finds its folder on its own.
 
-You must have run your osu! client at least once.
+The installer isn't code signed, so Windows SmartScreen may warn about it the first time (More info → Run anyway).
 
-### Usage
+### osu!lazer
 
-<a href="https://github.com/nzbasic/batch-beatmap-downloader/releases/latest">Download the latest release here</a>
+osu!lazer keeps its maps in a database instead of a Songs folder, so downloaded maps are handed to the game to import, the same way double clicking an `.osz` file does:
 
-#### Building yourself (for devs)
+- While osu!lazer is open, maps are imported as soon as they finish downloading.
+- While it's closed, they wait in a folder and are imported the next time the game is open, or right away with "Start osu!lazer & import".
+- Maps you already have in osu!lazer are skipped. The database is only ever read from a temporary copy.
+- Collections are written into osu!lazer's database only while the game is closed, after saving a backup as `client.realm.bbd-backup` next to it. If the game is open, the collection is created as soon as you close it.
 
-Please follow these steps to build the project yourself:
+### Building yourself
 
-1. Pull the repo
-2. Run "yarn" to install dependencies
-3. Run "yarn make:win" (or "yarn start" to dev)
-4. Run the installer found in /releases/
+Requires Node.js 22 or newer.
+
+```bash
+cd client
+npm install
+npm start          # run in development mode
+npm run make:win   # build the installer into client/out/make
+```
+
+`npm run typecheck` and `npm run lint` check the code. Development builds keep their settings in a separate folder, so they don't interfere with an installed copy.
+
+## Project structure
+
+| Folder | What's in it |
+| --- | --- |
+| `client/src/app` | Electron main process: settings, downloads, osu!stable and osu!lazer libraries, server API |
+| `client/src/bridges` | Preload bridge between the main process and the interface |
+| `client/src/render` | The React interface |
+| `client/src/models` | Types and filter logic shared by both sides |
+| `api` | The Go server behind the search and download endpoints (run by nzbasic) |
+| `download` | The Go downloader used by versions before 1.4 |
 
 ## Contributing
 
-First off, thanks for taking the time to contribute! Contributions are what makes the open-source community such an amazing place to learn, inspire, and create. Any contributions you make will benefit everybody else and are **greatly appreciated**.
-
-Please try to create bug reports that are:
+Bug reports and pull requests are welcome in the [issues](https://github.com/keyanare/batch-beatmap-downloader/issues). Please try to create bug reports that are:
 
 - _Reproducible._ Include steps to reproduce the problem.
-- _Specific._ Include as much detail as possible: which version, what environment, etc.
+- _Specific._ Include as much detail as possible: which version, osu!stable or osu!lazer, what environment, etc.
 - _Unique._ Do not duplicate existing opened issues.
 - _Scoped to a Single Bug._ One bug per report.
 
 ## Support
 
-Reach out to the maintainer at one of the following places:
+For problems with this fork, open an [issue](https://github.com/keyanare/batch-beatmap-downloader/issues).
 
-- Discord: basic#7373
-- Twitter: @nzbasic
-- osu!: YEP
-- Email: jamescoppard024@gmail.com
+Batch Beatmap Downloader was created by nzbasic, who also runs the beatmap server everyone downloads from. If the app is useful to you, consider supporting them:
 
-## Donate
-
-If you would like to support me I would greatly appreciate it. 
-
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/nzbasic)
-
-Crypto
-- NANO: nano_3ymx5ymxgwrsfc53mem7bfmwjgzwxhtzp41wdkepnxmjdzzhhf3dgiiif8qc
-- ETH: 0x46cB2b27C5607282BAdAaf9973EFd728D202A1d3
-- BTC: bc1q0f0xtmmf7n05qgnmeun6ytc8z676j8tryszrr3
-- DOGE: DRRhYtaFFoyGUaU1h8MyE8LBbMETjDU5AR
+[![coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/nzbasic)
 
 ## License
 
@@ -145,8 +164,8 @@ See [LICENSE](LICENSE) for more information.
 
 ## Acknowledgements
 
-Special thanks to the following:
-
-- <https://github.com/Itsyuka/osu-buffer> - Great tool for reading and writing osu! binary types
-- <https://github.com/saucesteals/electron-typescript-react-tailwind-redux> - Great electron react tailwind typescript template
-- <https://github.com/dec0dOS/amazing-github-template> - Great readme template
+- [nzbasic](https://github.com/nzbasic) for creating Batch Beatmap Downloader and running its server
+- [ppy/osu](https://github.com/ppy/osu) for osu!lazer, whose source made the lazer integration possible
+- [Realm](https://github.com/realm/realm-js) for reading osu!lazer's database
+- [Lucide](https://lucide.dev) for the icons
+- [amazing-github-template](https://github.com/dec0dOS/amazing-github-template) for the original readme template
