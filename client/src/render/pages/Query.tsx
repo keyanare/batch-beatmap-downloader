@@ -1,165 +1,192 @@
-import React, { useState } from "react";
-import { cloneDeep } from "lodash";
+import { Download, ListFilter, Search, SearchX, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import ReactDOM from "react-dom";
-import { CircularProgress } from "@mui/material";
-
-import { sampleTree } from "../../models/filter";
-import { RuleType } from "../../models/rules";
-import { Node, Group } from "../../models/filter";
-import { Settings } from "../components/Settings";
-import { DownloadDetails, QueryOrder } from "../../models/api";
-import { useStickyState } from "../hooks/useStickyState";
+import { Group, hasRules, Node, prepareQuery, sampleTree } from "../../models/filter";
+import { QueryOrder, SearchSummary } from "../../models/ipc";
+import { convertTreeToSimpleMode, treeIsCompatibleWithSimpleMode, treeToText } from "../../models/simple";
 import { DownloadSettings } from "../components/DownloadSettings";
-import { InvalidPath } from "../components/InvalidPath";
-import { SimpleFilter } from "../components/query/SimpleFilter";
 import { AdvancedFilter } from "../components/query/AdvancedFilter";
-import Button from "../components/util/Button";
-import { treeIsCompatibleWithSimpleMode } from "../../models/simple";
 import { QuerySettings } from "../components/query/QuerySettings";
-import { useSettings } from "../context/SettingsProvider";
 import { ResultTable } from "../components/query/ResultTable";
+import { ShareFilter } from "../components/query/ShareFilter";
+import { SimpleFilter } from "../components/query/SimpleFilter";
+import { Button } from "../components/ui/Button";
+import { Card, PageHeader } from "../components/ui/Card";
+import { EmptyState } from "../components/ui/Misc";
+import { Modal } from "../components/ui/Modal";
+import { Segmented } from "../components/ui/Segmented";
+import { useLibrary } from "../context/LibraryProvider";
+import { useStickyState } from "../hooks/useStickyState";
+import { plural } from "../util/format";
+
+const isValidTree = (tree: Node | null | undefined): tree is Node & { group: Group } =>
+  Boolean(tree?.group && Array.isArray(tree.group.children));
+
+const hasNestedGroups = (group: Group) => group.children.some((child) => child.group);
+
+/** A short name for a download started from this search. */
+const describe = (group: Group) => {
+  if (!treeIsCompatibleWithSimpleMode(group)) return "Advanced search";
+  const text = treeToText(convertTreeToSimpleMode(group));
+  if (!text) return "All beatmaps";
+  return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+};
+
+type Mode = "simple" | "advanced";
 
 export const Query = () => {
-  const { settings } = useSettings()
-  const { validPath } = settings;
-  const [tree, setTree] = useStickyState<Node>(sampleTree, "tree");
-  const [result, setResult] = useState<DownloadDetails | null>(null);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { library } = useLibrary();
+  const [storedTree, setTree] = useStickyState<Node>(sampleTree, "tree");
+  const tree = isValidTree(storedTree) ? storedTree : sampleTree;
+  const group = tree.group as Group;
+
+  const [simple, setSimple] = useStickyState(true, "simple");
   const [limit, setLimit] = useState<number>();
   const [order, setOrder] = useState<QueryOrder>();
-  const [simpleMode, setSimpleMode] = useStickyState(true, "simple")
+  const [summary, setSummary] = useState<SearchSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const results = useRef<HTMLDivElement>(null);
 
-  const exportData = async () => {
-    setResult(null);
+  const updateGroup = (next: Group) => setTree({ ...tree, group: next });
+
+  // Simple mode works on a flat list of rules
+  useEffect(() => {
+    if (!simple) return;
+    if (!treeIsCompatibleWithSimpleMode(group)) setSimple(false);
+    else if (hasNestedGroups(group)) setTree({ ...tree, group: convertTreeToSimpleMode(group) });
+  }, [simple, group, tree, setSimple, setTree]);
+
+  const changeMode = (mode: Mode) => {
+    if (mode === "advanced") setSimple(false);
+    else if (treeIsCompatibleWithSimpleMode(group)) setSimple(true);
+    else setConvertOpen(true);
+  };
+
+  const search = async () => {
     setLoading(true);
-
-    const map: Record<RuleType, string> = {
-      0: "Text",
-      1: "Numeric",
-      2: "Text",
-      3: "Text",
-      4: "Text",
-      5: "Text",
-      6: "Numeric",
-      7: "Numeric",
-      8: "Text",
-      9: "Numeric",
-      10: "Numeric",
-    };
-
-    // replace all rule types with the correct string from the Map
-    const replaceRuleType = (node: Node) => {
-      if ("rule" in node) {
-        if (!node.rule) return
-        node.rule.type = map[node.rule.type as RuleType];
-        if (node.rule.field === "LastUpdate") {
-          node.rule.value = node.rule.value.slice(0, -3)
-        }
-
-        if (node.rule.field === "Special") {
-          node.rule.field = node.rule.value;
-          node.rule.value = "1"
-        }
-      }
-      if ("group" in node) {
-        if (!node.group) return
-        node.group.children.forEach(replaceRuleType);
-      }
-    };
-
-    const clone = cloneDeep(tree);
-    replaceRuleType(clone);
-    const res = await window.electron.query(clone, limit, order);
-    if (!res) return
-
-    if (typeof res === "string") {
-      toast.error(res);
-    } else {
-      toast.success(`Query successful: ${res.beatmaps} results`);
-      setResult(res);
+    try {
+      const result = await window.electron.search(prepareQuery(tree), describe(group), limit, order);
+      setSummary(result);
+      if (result.beatmaps === 0) toast.info("No beatmaps match this filter");
+      else setTimeout(() => results.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const updateTree = (group: Group) => {
-    setTree({ ...tree, group });
-  };
+  if (!library) return null;
 
-  const handleChangeMode = (simple: boolean) => {
-    if (!simple) return setSimpleMode(simple)
-    if (tree.group && treeIsCompatibleWithSimpleMode(tree.group)) return setSimpleMode(simple)
-
-    const node = document.getElementById('modal')
-    if (!node) return
-    node.classList.remove('hidden')
-    ReactDOM.render(
-      <div className="bg-white dark:bg-monokai-light rounded-xl shadow p-8">
-        <p className="font-bold text-xl mb-4">Compatibility Error</p>
-        <p>Your current query is not compatible with the Simple Mode due to either:</p>
-        <ul className="list-disc list-inside">
-          <li>Nested rules</li>
-          <li>"Not" rules</li>
-          <li>"Or" rules</li>
-        </ul>
-        <p className="my-4">You can have your filter automatically converted, or stay in advanced mode.</p>
-        <div className="space-x-2">
-          <Button onClick={() => {
-            setSimpleMode(true);
-            node.classList.add('hidden')
-          }}>
-            Convert
-          </Button>
-          <Button onClick={() => node.classList.add('hidden')}>Cancel</Button>
-        </div>
-      </div>,
-      node
-    );
-  };
-
-  if (!tree.group) return null
-  return (
-    <div className="flex flex-col w-full gap-4">
-      <Settings />
-      {!validPath ? <InvalidPath /> : (
-        <>
-          <div className="flex items-center gap-4">
-            <button className={`${simpleMode ? 'box-selector-on' : 'box-selector-off'}`} onClick={() => handleChangeMode(true)}>Simple Mode</button>
-            <button className={`${!simpleMode ? 'box-selector-on' : 'box-selector-off'}`} onClick={() => handleChangeMode(false)}>Advanced Mode</button>
-          </div>
-          {simpleMode ?
-            <SimpleFilter tree={tree} updateTree={updateTree} /> :
-            <AdvancedFilter tree={tree} updateTree={updateTree} />
+  if (!library.valid) {
+    return (
+      <>
+        <PageHeader title="Search" />
+        <EmptyState
+          icon={Settings2}
+          title="Set up your game first"
+          description="Tell us where osu! is, so we know which maps you already have and where new ones should go."
+          action={
+            <Button variant="primary" onClick={() => navigate("/")}>
+              Set up
+            </Button>
           }
-          <div className="flex flex-col gap-6 content-box">
-            <QuerySettings
-              limit={limit}
-              updateLimit={(limit) => setLimit(limit)}
-              order={order}
-              updateOrder={(order) => setOrder(order)}
+        />
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Search"
+        description="Build a filter, then download every matching beatmap in one go"
+        actions={
+          <>
+            <ShareFilter
+              tree={tree}
+              onLoad={(loaded) => {
+                setTree(loaded);
+                if (loaded.group && !treeIsCompatibleWithSimpleMode(loaded.group)) setSimple(false);
+              }}
             />
-            <div className="flex gap-2 items-center">
-              <Button color="blue" onClick={exportData} disabled={loading}>
-                Search
-              </Button>
-              {loading && <CircularProgress size={25} />}
-              {result && result.beatmaps === 0 && <>No results!</>}
-            </div>
-          </div>
-        </>
-      )}
-      {result && result.beatmaps > 0 && (
-        <div className="flex flex-col gap-4">
-          <div className="content-box">
-            <DownloadSettings result={result} />
-          </div>
-          <div className="content-box no-pad mt-0 flex flex-col gap-4">
-            <span className="font-bold text-lg dark:text-white p-6 pb-2">Results</span>
-            <ResultTable result={result} />
-          </div>
+            <Segmented<Mode>
+              value={simple ? "simple" : "advanced"}
+              onChange={changeMode}
+              options={[
+                { value: "simple", label: "Simple", icon: SlidersHorizontal },
+                { value: "advanced", label: "Advanced", icon: ListFilter },
+              ]}
+            />
+          </>
+        }
+      />
+
+      <Card>
+        {simple ? <SimpleFilter group={group} onChange={updateGroup} /> : <AdvancedFilter group={group} onChange={updateGroup} />}
+      </Card>
+
+      <div className="sticky bottom-4 z-20 flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised/90 px-4 py-3 shadow-pop backdrop-blur">
+        <QuerySettings
+          limit={limit}
+          order={order}
+          onChange={(nextLimit, nextOrder) => {
+            setLimit(nextLimit);
+            setOrder(nextOrder);
+          }}
+        />
+        <Button variant="primary" icon={Search} loading={loading} disabled={!hasRules(tree)} onClick={search}>
+          Search
+        </Button>
+      </div>
+
+      {summary && summary.beatmaps > 0 && (
+        <div ref={results} className="flex scroll-mt-4 flex-col gap-5">
+          <Card
+            title="Download"
+            description={`Found ${plural(summary.beatmaps, "beatmap")} in ${plural(summary.sets, "set")}`}
+            icon={Download}
+          >
+            <DownloadSettings summary={summary} />
+          </Card>
+          <Card title="Results" icon={Sparkles} padding={false}>
+            <ResultTable summary={summary} />
+          </Card>
         </div>
       )}
+
+      {summary && summary.beatmaps === 0 && (
+        <EmptyState icon={SearchX} title="No results" description="Nothing matches this filter. Try loosening it a bit." />
+      )}
+
+      <Modal
+        open={convertOpen}
+        onClose={() => setConvertOpen(false)}
+        title="Switch to simple mode?"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConvertOpen(false)}>
+              Stay in advanced
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                updateGroup(convertTreeToSimpleMode(group));
+                setSimple(true);
+                setConvertOpen(false);
+              }}
+            >
+              Convert
+            </Button>
+          </>
+        }
+      >
+        Simple mode only supports rules that all have to match. This filter uses OR, NOT or nested groups, so
+        converting it will join everything with AND and drop the NOTs.
+      </Modal>
     </div>
   );
 };

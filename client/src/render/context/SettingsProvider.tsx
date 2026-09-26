@@ -1,132 +1,59 @@
-import { debounce } from 'lodash';
-import React, {
-  useState, createContext, useEffect, PropsWithChildren, useContext,
-} from 'react';
+import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import { AppSettings, DetectedPaths } from "../../models/ipc";
 
-interface SettingsObject {
-  darkMode: boolean;
-  path: string;
-  altPath: string;
-  altPathEnabled: boolean;
-  beatmapSetCount: number;
-  maxConcurrentDownloads: number;
-  validPath: boolean;
-  autoTransfer: boolean;
+interface SettingsContextValue {
+  settings: AppSettings | null;
+  detected: DetectedPaths | null;
+  update: (patch: Partial<AppSettings>) => Promise<void>;
+  detect: () => Promise<DetectedPaths>;
 }
 
-export interface Settings {
-  settings: SettingsObject
+const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-  toggleDarkMode: (on?: boolean) => void
-  setPath: (path: string) => void;
-  setAltPathEnabled: (enabled: boolean) => void;
-  setAltPath: (path: string) => void;
-  setMaxConcurrentDownloads: (number: number) => void;
-}
-
-const defaultContext: Settings = {
-  settings: {
-    darkMode: true,
-    path: "",
-    altPath: "",
-    altPathEnabled: false,
-    beatmapSetCount: 0,
-    maxConcurrentDownloads: 5,
-    validPath: false,
-    autoTransfer: false,
-  },
-
-  toggleDarkMode: () => null,
-  setPath: () => null,
-  setAltPathEnabled: () => null,
-  setAltPath: () => null,
-  setMaxConcurrentDownloads: () => null,
+const applyTheme = (theme: AppSettings["theme"]) => {
+  document.documentElement.classList.toggle("dark", theme === "dark");
 };
 
-export const SettingsContext = createContext<Settings>(defaultContext);
+const SettingsProvider = ({ children }: PropsWithChildren) => {
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [detected, setDetected] = useState<DetectedPaths | null>(null);
 
-const SettingsProvider: React.FC<PropsWithChildren<any>> = ({ children }) => {
-  const [settings, setSettings] = useState(defaultContext.settings)
-
-  useEffect(() => {
-    window.electron.getSettings().then((res) => {
-      setSettings({
-        darkMode: res.darkMode as boolean ?? true,
-        path: res.path as string ?? "",
-        altPath: res.altPath as string ?? "",
-        altPathEnabled: res.altPathEnabled as boolean ?? false,
-        beatmapSetCount: res.sets as number ?? 0,
-        maxConcurrentDownloads: res.maxConcurrentDownloads as number ?? 5,
-        validPath: res.validPath as boolean ?? false,
-        autoTransfer: res.autoTransfer as boolean ?? false,
-      })
-
-      document.documentElement.classList.toggle('dark', res.darkMode as boolean ?? true);
-    })
+  const detect = useCallback(async () => {
+    const paths = await window.electron.detectPaths();
+    setDetected(paths);
+    return paths;
   }, []);
 
-  const toggleDarkMode = (on?: boolean) => {
-    let newValue = !settings.darkMode
-    if (on !== undefined) newValue = on
-    document.documentElement.classList.toggle('dark', newValue)
-    window.electron.setSetting("darkMode", newValue)
-    setSettings(prev => ({ ...prev, darkMode: newValue }))
-  };
+  useEffect(() => {
+    window.electron.getSettings().then((value) => {
+      applyTheme(value.theme);
+      setSettings(value);
+    });
+    detect();
+  }, [detect]);
 
-  const handleSetPath = async (path: string) => {
-    const [validPath, beatmapSetCount] = await window.electron.setSetting("path", path)
-    setSettings(prev => ({
-      ...prev,
-      path,
-      validPath,
-      beatmapSetCount
-    }))
-  }
-
-  const handleSetAltPath = async (path: string) => {
-    const beatmapSetCount = await window.electron.setSetting("altPath", path)
-    setSettings(prev => ({
-      ...prev,
-      altPath: path,
-      beatmapSetCount
-    }))
-  }
-
-  const handleSetAltPathEnabled = async (enabled: boolean) => {
-    const beatmapSetCount = await window.electron.setSetting("altPathEnabled", enabled)
-    setSettings(prev => ({
-      ...prev,
-      altPathEnabled: enabled,
-      beatmapSetCount
-    }))
-  }
-
-  const debouncedSetMaxConcurrentDownloads = debounce((value: number) => window.electron.setSetting("maxConcurrentDownloads", value), 500)
-
-  const handleSetMaxConcurrentDownloads = (number: number) => {
-    debouncedSetMaxConcurrentDownloads(number)
-    setSettings(prev => ({
-      ...prev,
-      maxConcurrentDownloads: number
-    }))
-  }
+  const update = useCallback(async (patch: Partial<AppSettings>) => {
+    if (patch.theme) applyTheme(patch.theme);
+    // Optimistic, so toggles feel instant
+    setSettings((current) => (current ? { ...current, ...patch } : current));
+    try {
+      setSettings(await window.electron.updateSettings(patch));
+    } catch (error) {
+      toast.error((error as Error).message);
+      setSettings(await window.electron.getSettings());
+    }
+  }, []);
 
   return (
-    <SettingsContext.Provider
-      value={{
-        settings,
-        toggleDarkMode,
-        setPath: handleSetPath,
-        setAltPathEnabled: handleSetAltPathEnabled,
-        setAltPath: handleSetAltPath,
-        setMaxConcurrentDownloads: handleSetMaxConcurrentDownloads,
-      }}
-    >
-      {children}
-    </SettingsContext.Provider>
+    <SettingsContext.Provider value={{ settings, detected, update, detect }}>{children}</SettingsContext.Provider>
   );
 };
 
-export const useSettings = () => useContext(SettingsContext)
+export const useSettings = () => {
+  const context = useContext(SettingsContext);
+  if (!context) throw new Error("useSettings must be used inside SettingsProvider");
+  return context;
+};
 
 export default SettingsProvider;

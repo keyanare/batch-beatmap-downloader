@@ -1,40 +1,28 @@
-import React from "react"
-import { TInputItemProps } from "./InputItem";
-import { TInputItemMinMax } from "../../../../models/simple";
-import { NumericInput } from "../../util/NumericInput";
+import React from "react";
+import { MinMax, TInputItemMinMax } from "../../../../models/simple";
+import { NumberInput } from "../../ui/Input";
+import { Field } from "./InputItem";
 
-export const MinMaxInput: React.FC<TInputItemProps<TInputItemMinMax>> = ({ label, value, onChange, step }) => {
-  const updateValue = (number: number, index: number) => {
-    const newValues = [...value]
-    newValues[index] = Number.isNaN(number) ? -1 : number
-    onChange(newValues)
-  }
+interface MinMaxInputProps {
+  item: TInputItemMinMax;
+  value: MinMax;
+  onChange: (value: MinMax) => void;
+}
 
-  const convertValue = (number: number) => {
-    if (number === -1) return NaN
-    return number
-  }
+export const MinMaxInput = ({ item, value, onChange }: MinMaxInputProps) => {
+  const [min, max] = value;
+  const inverted = min !== null && max !== null && min > max;
 
   return (
-    <div className="flex items-center w-full">
-      <span className="min-w-[8rem] label">{label}</span>
+    <Field
+      label={item.label}
+      hint={inverted ? <span className="text-2xs text-danger">Min is above max</span> : item.unit && <span className="text-2xs text-fg-subtle">{item.unit}</span>}
+    >
       <div className="flex items-center gap-2">
-        <NumericInput
-          placeholder="Min"
-          step={step}
-          className="p-1 px-2 w-16"
-          value={convertValue(value[0])}
-          onChange={(value) => updateValue(value, 0)}
-        />
-
-        <NumericInput
-          placeholder="Max"
-          step={step}
-          className="p-1 px-2 w-16"
-          value={convertValue(value[1])}
-          onChange={(value) => updateValue(value, 1)}
-        />
+        <NumberInput placeholder="Min" value={min} onChange={(next) => onChange([next, max])} />
+        <span className="text-fg-subtle">–</span>
+        <NumberInput placeholder="Max" value={max} onChange={(next) => onChange([min, next])} />
       </div>
-    </div>
-  )
-}
+    </Field>
+  );
+};

@@ -1,33 +1,21 @@
-import React, { useEffect, useState } from "react";
-import Select from "react-select";
-import { Rule, RuleType, operatorMap, Operator } from "../../../../models/rules";
+import React from "react";
+import { operatorMap, Rule, RuleType } from "../../../../models/rules";
+import { Select } from "../../ui/Select";
 
-interface PropTypes {
+interface RuleOperatorProps {
   rule: Rule;
   onChange: (rule: Rule) => void;
 }
 
-export const RuleOperator = ({ rule, onChange }: PropTypes) => {
-  const [selectedOption, setSelectedOption] = useState<Operator | null>(null);
-
-  useEffect(() => {
-    const option = operatorMap[rule.type as RuleType]
-      .find((i) => i.value === rule.operator);
-    if (!option) {
-      setSelectedOption(operatorMap[rule.type as RuleType][0]);
-    } else {
-      setSelectedOption(option);
-    }
-  }, [rule]);
-
+export const RuleOperator = ({ rule, onChange }: RuleOperatorProps) => {
+  const options = operatorMap[rule.type as RuleType] ?? [];
   return (
     <Select
-      className="w-52 my-react-select-container"
-      classNamePrefix="my-react-select"
-      options={operatorMap[rule.type as RuleType]}
+      className="w-56"
       isSearchable={false}
-      value={selectedOption}
-      onChange={(e) => onChange({ ...rule, operator: e?.value ?? "" })}
+      value={options.find((option) => option.value === rule.operator) ?? options[0]}
+      options={options}
+      onChange={(option) => onChange({ ...rule, operator: option.value })}
     />
   );
 };

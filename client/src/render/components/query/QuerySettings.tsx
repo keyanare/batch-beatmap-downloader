@@ -1,100 +1,75 @@
-import isNumber from "is-number";
+import { ArrowDownWideNarrow } from "lucide-react";
 import React from "react";
-import Switch from "react-switch";
-import Select from "react-select";
-import { QueryOrder } from "../../../models/api";
-import { NumericInput } from "../util/NumericInput";
+import { QueryOrder } from "../../../models/ipc";
+import { NumberInput } from "../ui/Input";
+import { Select } from "../ui/Select";
+import { Toggle } from "../ui/Toggle";
 
-interface PropTypes {
+interface QuerySettingsProps {
   limit: number | undefined;
-  updateLimit: (n: number | undefined) => void;
   order: QueryOrder | undefined;
-  updateOrder: (order: QueryOrder | undefined) => void;
+  onChange: (limit: number | undefined, order: QueryOrder | undefined) => void;
 }
 
 const orderOptions = [
-  { value: "approvedDate", label: "Approved Date" },
+  { value: "approvedDate", label: "Ranked date" },
+  { value: "lastUpdate", label: "Last update" },
+  { value: "stars", label: "Star rating" },
   { value: "bpm", label: "BPM" },
-  { value: "stars", label: "Star Rating" },
-  { value: "favouriteCount", label: "Favorite Count" },
-  { value: "passCount", label: "Pass Count" },
-  { value: "playCount", label: "Play Count" },
-  { value: "maxCombo", label: "Max Combo" },
-  { value: "hitLength", label: "Hit Length" },
-  { value: "totalLength", label: "Total Length" },
-  { value: "lastUpdate", label: "Last Update Date" },
+  { value: "favouriteCount", label: "Favourites" },
+  { value: "playCount", label: "Play count" },
+  { value: "passCount", label: "Pass count" },
+  { value: "maxCombo", label: "Max combo" },
+  { value: "hitLength", label: "Drain length" },
+  { value: "totalLength", label: "Total length" },
   { value: "hp", label: "HP" },
   { value: "cs", label: "CS" },
   { value: "od", label: "OD" },
   { value: "ar", label: "AR" },
-  { value: "size", label: "File Size" },
-  { value: "id", label: "Beatmap Id" },
-  { value: "setId", label: "Beatmap Set Id" },
+  { value: "size", label: "File size" },
+  { value: "id", label: "Beatmap id" },
+  { value: "setId", label: "Set id" },
 ];
 
 const directionOptions = [
-  { value: "DESC", label: "High to Low" },
-  { value: "ASC", label: "Low to High" },
-]
+  { value: "DESC", label: "Highest first" },
+  { value: "ASC", label: "Lowest first" },
+];
 
-const defaultLimit = 10;
-const defaultOrder = {
-  by: "approvedDate",
-  direction: "DESC"
-}
+const defaultOrder: QueryOrder = { by: "approvedDate", direction: "DESC" };
 
-export const QuerySettings = ({ limit, updateLimit, order, updateOrder }: PropTypes) => {
-  const enable = (enabled: boolean) => {
-    if (enabled) {
-      updateLimit(defaultLimit);
-      updateOrder(defaultOrder);
-    } else {
-      updateLimit(undefined);
-      updateOrder(undefined);
-    }
-  };
+export const QuerySettings = ({ limit, order, onChange }: QuerySettingsProps) => {
+  const enabled = limit !== undefined;
+  const current = order ?? defaultOrder;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center h-10">
-        <label className="w-32 label">Query Limit</label>
-        <Switch
-          onChange={(enabled) => enable(enabled)}
-          checked={limit !== undefined}
-        />
-      </div>
-
-      {limit && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center">
-            <label className="w-32">Limit</label>
-            <NumericInput
-              className="input-height p-2 w-40 border-gray-300 border rounded focus:outline-blue-500"
-              value={limit}
-              onChange={(n) => updateLimit(Math.max(1, n || 1))}
-              step={1}
-            />
-          </div>
-
-          <div className="flex items-center">
-            <label className="w-32 label">Order by</label>
-            <Select
-              menuPlacement="top"
-              className="w-52 my-react-select-container"
-              classNamePrefix="my-react-select"
-              options={orderOptions}
-              value={orderOptions.find(item => order?.by === item.value)}
-              onChange={(e) => e && order && updateOrder({ ...order, by: e.value })}
-            />
-            <Select
-              menuPlacement="top"
-              className="w-40 ml-4 my-react-select-container"
-              classNamePrefix="my-react-select"
-              options={directionOptions}
-              value={directionOptions.find(item => order?.direction === item.value)}
-              onChange={(e) => e && order && updateOrder({ ...order, direction: e.value })}
-            />
-          </div>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-fg-muted">
+        <Toggle checked={enabled} onChange={(on) => onChange(on ? 100 : undefined, on ? defaultOrder : undefined)} />
+        Only the first
+      </label>
+      {enabled && (
+        <div className="flex animate-fade-in items-center gap-2">
+          <NumberInput
+            className="w-20"
+            value={limit}
+            onChange={(value) => onChange(value === null ? 1 : Math.max(1, Math.round(value)), current)}
+          />
+          <span className="text-[13px] text-fg-muted">beatmaps by</span>
+          <Select
+            className="w-40"
+            value={orderOptions.find((option) => option.value === current.by)}
+            options={orderOptions}
+            onChange={(option) => onChange(limit, { ...current, by: option.value })}
+          />
+          <Select
+            className="w-36"
+            isSearchable={false}
+            value={directionOptions.find((option) => option.value === current.direction)}
+            options={directionOptions}
+            onChange={(option) => onChange(limit, { ...current, direction: option.value })}
+          />
+          <ArrowDownWideNarrow size={15} className="text-fg-subtle" />
         </div>
       )}
     </div>

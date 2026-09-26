@@ -1,27 +1,26 @@
 import React from "react";
-import Select from "react-select";
-import { inputOptions, Rule, defaultValuesMap, defaultOperatorsMap, RuleType } from "../../../../models/rules";
+import { defaultOperatorsMap, defaultValuesMap, inputOptions, Rule, RuleType } from "../../../../models/rules";
+import { Select } from "../../ui/Select";
 
-interface PropTypes {
+interface RuleSelectorProps {
   rule: Rule;
   onChange: (rule: Rule) => void;
 }
 
-export const RuleSelector = ({ rule, onChange }: PropTypes) => {
-  return (
-    <Select
-      className="w-52 my-react-select-container"
-      classNamePrefix="my-react-select"
-      options={inputOptions}
-      defaultValue={inputOptions.find((i) => i.value === rule.field)}
-      onChange={(option) =>
-        onChange({
-          field: option?.value ?? "",
-          type: option?.type ?? "",
-          value: defaultValuesMap[option?.type ?? RuleType.TEXT],
-          operator: defaultOperatorsMap[option?.type ?? RuleType.TEXT],
-        })
-      }
-    />
-  );
-};
+export const RuleSelector = ({ rule, onChange }: RuleSelectorProps) => (
+  <Select
+    className="w-48"
+    value={inputOptions.find((option) => option.value === rule.field)}
+    options={inputOptions}
+    onChange={(option) => {
+      if (option.value === rule.field) return;
+      const type = option.type ?? RuleType.TEXT;
+      onChange({
+        field: option.value,
+        type,
+        value: type === RuleType.DATE ? String(Date.now()) : defaultValuesMap[type],
+        operator: defaultOperatorsMap[type],
+      });
+    }}
+  />
+);

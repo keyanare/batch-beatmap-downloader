@@ -1,135 +1,139 @@
-import React, { useMemo, useState } from "react"
-import { ReportedDownloadStatus } from "../../models/api"
-import humanizeDuration from 'humanize-duration';
+import clsx from "clsx";
+import { CircleAlert, ListPlus, Pause, Play, RotateCcw, Trash } from "lucide-react";
+import React, { useState } from "react";
 import { toast } from "react-toastify";
-import { bytesToFileSize } from "../util/fileSize";
-import { LinearProgress } from "@mui/material";
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import PauseIcon from '@mui/icons-material/Pause';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import { DownloadInfo } from "../../models/ipc";
+import { remainingOf } from "../context/DownloadProvider";
+import { formatBytes, formatDuration, formatNumber, formatRelative, formatSpeed } from "../util/format";
+import { Badge, Tone } from "./ui/Badge";
+import { Button } from "./ui/Button";
+import { Confirm } from "./ui/Modal";
+import { Progress } from "./ui/Progress";
 
-interface PropTypes {
-  status: ReportedDownloadStatus
-}
+const states: Record<DownloadInfo["state"], { label: string; tone: Tone }> = {
+  running: { label: "Downloading", tone: "accent" },
+  paused: { label: "Paused", tone: "neutral" },
+  waiting: { label: "Waiting for server", tone: "warning" },
+  finished: { label: "Finished", tone: "success" },
+};
 
-export const DownloadSummary: React.FC<PropTypes> = ({ status }) => {
-  const [loading, setLoading] = useState(false)
-  const [expanded, setExpanded] = useState(true)
+const Count = ({ label, value, tone }: { label: string; value: number; tone?: string }) => (
+  <div className="flex items-baseline gap-1.5">
+    <span className={clsx("text-[13px] font-semibold tabular-nums", tone)}>{formatNumber(value)}</span>
+    <span className="text-xs text-fg-subtle">{label}</span>
+  </div>
+);
 
-  const estimatedTimeLeft = useMemo(() => {
-    if (status.speed === 0) {
-      return "Calculating..."
-    }
-
-    const remainingSize = (status.totalSize - status.totalProgress)
-    const speed = status.speed * 1024 * 1024
-    if (speed === 0) {
-      return "Calculating..."
-    }
-
-    const remainingTime = (remainingSize / speed) * 1000
-    return humanizeDuration(remainingTime, { round: true })
-  }, [status.speed, status.totalSize, status.totalProgress])
-
-  const remove = () => {
-    setLoading(true)
-    window.electron.deleteDownload(status.id).then(() => {
-      toast.success("Download deleted")
-      setLoading(false)
-    })
+const run = async (action: () => Promise<void>, message?: string) => {
+  try {
+    await action();
+    if (message) toast.success(message);
+  } catch (error) {
+    toast.error((error as Error).message);
   }
+};
 
-  const togglePause = async () => {
-    setLoading(true)
-    if (status.paused) {
-      await window.electron.resumeDownload(status.id)
-      toast.success("Download resumed")
-    } else {
-      await window.electron.pauseDownload(status.id)
-      toast.success("Download paused")
-    }
-    setLoading(false)
-  }
+export const DownloadSummary = ({ download }: { download: DownloadInfo }) => {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remaining = remainingOf(download);
+  const processed = download.total - remaining;
+  const progress = download.total ? processed / download.total : 1;
+  const state = states[download.state];
+  const running = download.state === "running";
+  const finished = download.state === "finished";
 
-  const progress = useMemo(() => {
-    if (status.totalSize === 0) {
-      return 0;
-    }
-    return (status.totalProgress / status.totalSize) * 100;
-  }, [status.totalSize, status.totalProgress]);
-
-  const [remaining, finished] = useMemo(() => {
-    const { all, completed, failed, skipped } = status;
-    const remaining = all - completed - skipped - failed;
-    const finished = remaining === 0
-    return [remaining, finished]
-  }, [status])
+  const bytesLeft = Math.max(0, download.totalBytes - download.downloadedBytes);
+  const eta = running && download.speed > 0 && bytesLeft > 0 ? formatDuration((bytesLeft / download.speed) * 1000) : null;
 
   return (
-    <div className="content-box hover:border-blue-400 flex flex-col" >
-      <div className="flex items-center gap-2">
-        <button onClick={remove} disabled={loading}>
-          <DeleteForeverIcon className="warning z-20" />
-        </button>
-        {!finished && (
-          <button className="hover:text-blue-600 cursor-pointer" disabled={loading} onClick={togglePause}>
-            {status.paused ? <PlayArrowIcon /> : <PauseIcon />}
-          </button>
-        )}
-
-        <div className="w-60 text-sm">{bytesToFileSize(status.totalProgress)}/{bytesToFileSize(status.totalSize)}</div>
-        <div className="w-full">
-          {remaining > 0 ? (
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-            />
-          ) : (
-            <>Complete!</>
-          )}
+    <div className="animate-fade-in rounded-2xl border border-line bg-surface p-5 shadow-card">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate font-mono text-[13px] font-semibold" title={download.name}>
+              {download.name}
+            </h3>
+            <Badge tone={state.tone} dot={running}>
+              {state.label}
+            </Badge>
+            {download.force && <Badge>Redownloading owned</Badge>}
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-xs text-fg-subtle">
+            <span>Started {formatRelative(download.createdAt)}</span>
+            {download.collectionName && (
+              <span className="flex items-center gap-1">
+                · <ListPlus size={12} /> {download.collectionName}
+              </span>
+            )}
+          </div>
         </div>
-        <span className="ml-2">
-          {progress.toFixed(0)}%
-        </span>
-        <ExpandMoreIcon className="cursor-pointer hover:text-black dark:hover:text-white" onClick={() => setExpanded(prev => !prev)}/>
+        <div className="flex shrink-0 items-center gap-1">
+          {download.failed > 0 && (
+            <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => run(() => window.electron.retryFailed(download.id))}>
+              Retry failed
+            </Button>
+          )}
+          {!finished &&
+            (running || download.state === "waiting" ? (
+              <Button size="sm" variant="secondary" icon={Pause} onClick={() => run(() => window.electron.pauseDownload(download.id))}>
+                Pause
+              </Button>
+            ) : (
+              <Button size="sm" variant="primary" icon={Play} onClick={() => run(() => window.electron.resumeDownload(download.id))}>
+                Resume
+              </Button>
+            ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={Trash}
+            title={finished ? "Remove from list" : "Cancel download"}
+            onClick={() => (finished ? run(() => window.electron.deleteDownload(download.id)) : setConfirmDelete(true))}
+          />
+        </div>
       </div>
 
-      {expanded && (
-        <div className="flex flex-col gap-0 pt-4">
-          <div className="flex items-center">
-            <div className="w-44 label">Sets Downloaded</div>
-            <span>{status.completed}</span>
-          </div>
+      <div className="mt-4 flex items-center gap-3">
+        <Progress
+          value={progress}
+          active={running}
+          tone={finished ? (download.failed ? "warning" : "success") : download.state === "running" ? "accent" : "muted"}
+        />
+        <span className="w-10 text-right text-xs font-semibold tabular-nums text-fg-muted">{Math.floor(progress * 100)}%</span>
+      </div>
 
-          <div className="flex items-center">
-            <div className="w-44 label">Sets Remaining</div>
-            <span>{remaining}</span>
-          </div>
-
-          <div className="flex items-center">
-            <div className="w-44 label">Sets Skipped</div>
-            <span>{status.skipped}</span>
-          </div>
-
-          <div className="flex items-center">
-            <div className="w-44 label">Sets Failed</div>
-            <span>{status.failed}</span>
-          </div>
-
-          <div className="flex items-center">
-            <div className="w-44 label">Speed</div>
-            <span>{`${status.speed.toFixed(2)}MB/s`}</span>
-          </div>
-
-          {!status.paused && remaining !== 0 &&
-            <div className="flex items-center">
-              <div className="w-44 label">ETA</div>
-              <span>{estimatedTimeLeft}</span>
-            </div>
-          }
+      {download.error && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-warning">
+          <CircleAlert size={14} /> {download.error}
         </div>
       )}
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <Count label="downloaded" value={download.completed} />
+          {remaining > 0 && <Count label="left" value={remaining} />}
+          {download.skipped > 0 && <Count label="already had" value={download.skipped} />}
+          {download.failed > 0 && <Count label="failed" value={download.failed} tone="text-danger" />}
+        </div>
+        <div className="flex items-center gap-4 text-xs tabular-nums text-fg-subtle">
+          <span>
+            {formatBytes(download.downloadedBytes)}
+            {!finished && ` of ${formatBytes(download.totalBytes)}`}
+          </span>
+          {running && <span className="font-medium text-fg-muted">{formatSpeed(download.speed)}</span>}
+          {eta && <span>{eta} left</span>}
+        </div>
+      </div>
+
+      <Confirm
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Cancel this download?"
+        message={`${formatNumber(remaining)} beatmap sets haven't been downloaded yet. Maps that finished stay in your library.`}
+        confirmLabel="Cancel download"
+        danger
+        onConfirm={() => run(() => window.electron.deleteDownload(download.id), "Download cancelled")}
+      />
     </div>
   );
-}
+};
