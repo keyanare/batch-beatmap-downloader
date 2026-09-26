@@ -1,37 +1,29 @@
-/* eslint @typescript-eslint/no-var-requires: "off"  */
-const rules = require("./webpack.rules");
-const plugins = require("./webpack.renderer.plugins");
-const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
+/* eslint-disable @typescript-eslint/no-var-requires */
 const path = require("path");
-
-rules.push({
-  test: /\.css$/,
-  use: [
-    { loader: "style-loader" },
-    { loader: "css-loader", options: { importLoaders: 1 } },
-    {
-      loader: "postcss-loader",
-      options: {
-        postcssOptions: {
-          config: path.join(__dirname, "postcss.config.js"),
-        },
-      },
-    },
-  ],
-});
+const rules = require("./webpack.rules");
 
 module.exports = {
   module: {
-    rules,
-  },
-  plugins: plugins,
-  resolve: {
-    fallback: { domain: false },
-    extensions: [".js", ".ts", ".jsx", ".tsx", ".css"],
-    plugins: [
-      new TsconfigPathsPlugin({
-        baseUrl: ".",
-      }),
+    rules: [
+      ...rules,
+      {
+        test: /\.css$/,
+        use: [
+          { loader: "style-loader" },
+          { loader: "css-loader", options: { importLoaders: 1 } },
+          {
+            loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                config: path.join(__dirname, "postcss.config.js"),
+              },
+            },
+          },
+        ],
+      },
     ],
+  },
+  resolve: {
+    extensions: [".js", ".ts", ".tsx", ".css"],
   },
 };

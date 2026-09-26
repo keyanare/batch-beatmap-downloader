@@ -1,11 +1,11 @@
 module.exports = [
-  // Native node modules
+  // Native node modules (realm)
   {
-    test: /\.node$/,
+    test: /native_modules[/\\].+\.node$/,
     use: "node-loader",
   },
   {
-    test: /\.(m?js|node)$/,
+    test: /[/\\]node_modules[/\\].+\.(m?js|node)$/,
     parser: { amd: false },
     use: {
       loader: "@vercel/webpack-asset-relocator-loader",
@@ -24,26 +24,6 @@ module.exports = [
       },
     },
   },
-
-  {
-    test: /\.jsx?$/,
-    exclude: /node_modules/,
-    use: {
-      loader: "babel-loader",
-      options: {
-        presets: [
-          [
-            "@babel/preset-react",
-            {
-              runtime: "automatic",
-            },
-          ],
-        ],
-      },
-    },
-  },
-
-  // Assets
   {
     test: /\.(png|svg|jpg|jpeg|gif|woff|woff2|eot|ttf|otf)$/i,
     type: "asset",
@@ -52,7 +32,7 @@ module.exports = [
     },
     parser: {
       dataUrlCondition: {
-        maxSize: 4 * 1024, // 4 KB
+        maxSize: 4 * 1024,
       },
     },
   },

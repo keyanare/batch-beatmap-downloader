@@ -1,7 +1,7 @@
 {
   "name": "batch-beatmap-downloader",
   "productName": "Batch Beatmap Downloader",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A way to mass download osu! beatmaps with a user friendly query builder.",
   "main": ".webpack/main",
   "repository": {
@@ -10,17 +10,14 @@
   },
   "scripts": {
     "start": "electron-forge start",
-    "lint": "cross-env NODE_ENV=development eslint . --cache --ext .js,.jsx,.ts,.tsx",
-    "create-icons": "electron-icon-builder --input=./assets/package/source.png --output=./assets/package",
-    "package:mac": "electron-forge package --platform darwin",
-    "package:linux": "electron-forge package --platform linux",
-    "package:win": "electron-forge package --platform win32",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --cache --ext .ts,.tsx",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "make:win": "electron-forge make --platform win32",
     "make:mac": "electron-forge make --platform darwin",
     "make:linux": "electron-forge make --platform linux",
-    "make:win": "electron-forge make --platform win32",
-    "publish:mac": "electron-forge publish --platform darwin",
-    "publish:linux": "electron-forge publish --platform linux",
-    "publish:win": "electron-forge publish --platform win32"
+    "publish": "electron-forge publish"
   },
   "keywords": [],
   "author": {
@@ -29,127 +26,61 @@
   },
   "license": "MIT",
   "config": {
-    "forge": "./.config/forge.config.js",
-    "commitizen": {
-      "path": "cz-conventional-changelog",
-      "defaultScope": "global"
-    }
+    "forge": "./.config/forge.config.js"
   },
   "prettier": {
-    "overrides": [
-      {
-        "files": [
-          ".prettierrc",
-          ".eslintrc"
-        ],
-        "options": {
-          "parser": "json"
-        }
-      }
-    ],
     "singleQuote": false
   },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "cross-env NODE_ENV=development eslint --cache"
-    ],
-    "{*.json,.{eslintrc,prettierrc}}": [
-      "prettier --ignore-path .eslintignore --parser json --write"
-    ],
-    "*.{css,scss}": [
-      "prettier --ignore-path .eslintignore --write"
-    ],
-    "*.{html,md,yml}": [
-      "prettier --ignore-path .eslintignore  --write"
-    ]
-  },
   "devDependencies": {
-    "@babel/core": "^7.14.6",
-    "@babel/preset-react": "^7.14.5",
-    "@electron-forge/cli": "^6.0.0-beta.57",
-    "@electron-forge/maker-deb": "^6.0.0-beta.57",
-    "@electron-forge/maker-dmg": "^6.0.0-beta.57",
-    "@electron-forge/maker-squirrel": "^6.0.0-beta.57",
-    "@electron-forge/maker-zip": "^6.0.0-beta.57",
-    "@electron-forge/plugin-webpack": "^6.0.0-beta.59",
-    "@electron-forge/publisher-github": "^6.0.0-beta.57",
-    "@types/node": "^16.3.0",
-    "@types/react": "^17.0.14",
-    "@types/react-dom": "^17.0.9",
-    "@types/react-redux": "^7.1.18",
-    "@types/react-router-dom": "^5.1.8",
-    "@typescript-eslint/eslint-plugin": "^4.28.2",
-    "@typescript-eslint/parser": "^4.0.1",
-    "@vercel/webpack-asset-relocator-loader": "^1.6.0",
-    "@zauberware/eslint-config": "^0.1.9",
-    "autoprefixer": "^10.4.2",
-    "babel-loader": "^8.2.2",
-    "commitizen": "^4.2.4",
-    "cross-env": "^7.0.3",
-    "css-loader": "^5.0.0",
-    "dotenv": "^10.0.0",
-    "electron": "13.3.0",
-    "electron-icon-builder": "^2.0.1",
-    "eslint": "^7.6.0",
-    "eslint-import-resolver-typescript": "^2.4.0",
-    "eslint-plugin-import": "^2.23.4",
-    "fork-ts-checker-webpack-plugin": "^6.0.1",
-    "husky": "^7.0.1",
-    "node-loader": "^2.0.0",
-    "postcss": "^8.4.6",
-    "postcss-loader": "^6.1.1",
-    "style-loader": "^2.0.0",
-    "tailwindcss": "^3.0.19",
-    "ts-loader": "^9.2.2",
-    "tsconfig-paths-webpack-plugin": "^3.5.1",
-    "typescript": "^4.0.2"
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-deb": "^7.11.2",
+    "@electron-forge/maker-dmg": "^7.11.2",
+    "@electron-forge/maker-squirrel": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
+    "@electron-forge/plugin-webpack": "^7.11.2",
+    "@electron-forge/publisher-github": "^7.11.2",
+    "@types/humanize-duration": "^3.27.4",
+    "@types/node": "^22.20.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@typescript-eslint/eslint-plugin": "^8.70.1",
+    "@typescript-eslint/parser": "^8.70.1",
+    "@vercel/webpack-asset-relocator-loader": "1.7.3",
+    "autoprefixer": "^10.6.1",
+    "css-loader": "^7.1.5",
+    "dotenv": "^16.6.1",
+    "electron": "^44.4.5",
+    "eslint": "^8.57.1",
+    "eslint-import-resolver-typescript": "^3.10.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "fork-ts-checker-webpack-plugin": "^9.1.0",
+    "node-loader": "^2.1.0",
+    "postcss": "^8.5.28",
+    "postcss-loader": "^8.2.1",
+    "style-loader": "^4.0.0",
+    "tailwindcss": "^3.4.19",
+    "ts-loader": "^9.6.2",
+    "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@davidcmeier/string-to-color": "^2.0.0",
-    "@emotion/react": "^11.7.1",
-    "@emotion/styled": "^11.6.0",
-    "@mui/icons-material": "^5.4.1",
-    "@mui/material": "^5.4.1",
-    "@reduxjs/toolkit": "^1.6.0",
-    "@types/axios": "^0.14.0",
-    "@types/electron-settings": "^4.0.0",
-    "@types/humanize-duration": "^3.27.1",
-    "@types/is-number": "^7.0.3",
-    "@types/lodash": "^4.14.178",
-    "@types/react-datepicker": "^4.3.4",
-    "@types/uuid": "^8.3.4",
-    "axios": "^0.26.0",
-    "color-scales": "^3.0.2",
-    "colors": "^1.4.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "axios": "^1.20.0",
+    "clsx": "^2.1.1",
     "compress-json": "^2.1.2",
-    "electron-is-dev": "^2.0.0",
-    "electron-log": "^4.4.6",
-    "electron-persist-secure": "^1.3.0",
-    "electron-settings": "^4.0.2",
-    "electron-squirrel-startup": "^1.0.0",
-    "humanize-duration": "^3.27.1",
-    "ipc-node-go": "^0.2.0",
-    "is-number": "^7.0.0",
-    "lodash": "^4.17.21",
-    "nanoid": "^4.0.0",
-    "nodejs-file-downloader": "^4.9.3",
-    "osu-buffer": "^2.0.2",
-    "prettier": "^2.5.1",
-    "rc-slider": "^9.7.5",
-    "react": "^17.0.2",
-    "react-datepicker": "^4.6.0",
-    "react-dom": "^17.0.2",
-    "react-redux": "^7.2.4",
-    "react-router-dom": "^6.2.1",
-    "react-select": "^5.2.2",
-    "react-switch": "^6.0.0",
-    "react-toastify": "^8.2.0",
-    "redux-persist": "^6.0.0",
-    "tailwind-scrollbar": "^1.3.1",
-    "update-electron-app": "^2.0.1",
-    "url2file": "^1.0.2",
-    "username": "^6.0.0",
-    "utf8-string-bytes": "^1.0.3",
-    "uuid": "^8.3.2"
+    "electron-log": "^5.4.4",
+    "electron-settings": "^4.0.4",
+    "electron-squirrel-startup": "^1.0.1",
+    "humanize-duration": "^3.35.0",
+    "lucide-react": "^1.48.0",
+    "rc-slider": "^11.1.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6",
+    "react-select": "^5.10.2",
+    "react-toastify": "^11.1.0",
+    "realm": "20.2.0",
+    "update-electron-app": "^3.3.0"
   }
 }
