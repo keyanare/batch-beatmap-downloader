@@ -9,6 +9,22 @@ export interface ChangeLogItem {
 
 export const changeLog: ChangeLogItem[] = [
   {
+    version: "1.5.0",
+    date: 1790553600000,
+    changes: [
+      {
+        title: "macOS and Linux",
+        changes: [
+          "Builds for macOS (Apple Silicon and Intel) and Linux (AppImage and .deb)",
+          "Finds osu!lazer installed as an AppImage, from the AUR or Flatpak, and osu!.app on macOS",
+          "Finds osu!stable running through wine (osu-winello, ~/.wine, Lutris)",
+          "Copy, paste and other shortcuts work on macOS",
+          "Tells you when a new version is out, since these builds can't update themselves",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.4.0",
     date: 1790467200000,
     changes: [

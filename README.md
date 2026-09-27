@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  Download thousands of osu! beatmaps at once, straight into <b>osu!stable</b> or <b>osu!lazer</b>.
+  Download thousands of osu! beatmaps at once, straight into <b>osu!stable</b> or <b>osu!lazer</b>.<br>Windows, macOS and Linux.
 </p>
 
 <div align="center">
@@ -52,7 +52,7 @@
 
 Batch Beatmap Downloader provides an easy way to download a lot of osu! beatmaps matching some filter criteria.
 
-- Mass download osu! beatmaps, for osu!stable and osu!lazer
+- Mass download osu! beatmaps, for osu!stable and osu!lazer on Windows, macOS and Linux
 - Filter by status, mode, star rating, BPM, AR/CS/OD/HP, length, mapper, genre, language and more
 - A simple mode with osu! style search terms (`status=r mode=o stars>=6.5 artist="camellia"`) and an advanced mode with AND / OR / NOT and nested groups
 - Preset filters and shareable filters
@@ -100,11 +100,17 @@ The full list is in the app under "What's new".
 
 ### Installing
 
-1. [Download `BBDWindowsSetup.exe` from the latest release](https://github.com/keyanare/batch-beatmap-downloader/releases/latest) and run it. Installing it updates an existing installation of the original app.
-2. You need [osu!](https://osu.ppy.sh), either osu!stable or osu!lazer, and have to have run it at least once.
-3. Choose your game on the home screen. The app usually finds its folder on its own.
+You need [osu!](https://osu.ppy.sh), either osu!stable or osu!lazer, and have to have run it at least once. Download the app for your system from the [latest release](https://github.com/keyanare/batch-beatmap-downloader/releases/latest), then choose your game on the home screen. The app usually finds its folder on its own.
 
-The installer isn't code signed, so Windows SmartScreen may warn about it the first time (More info → Run anyway).
+**Windows**: run `BBDWindowsSetup.exe`. It updates an existing installation of the original app, and updates itself from then on. The installer isn't code signed, so SmartScreen may warn about it the first time (More info → Run anyway).
+
+**macOS**: open the `.dmg` for your Mac (`arm64` for Apple Silicon, `x64` for Intel) and drag the app into Applications. It isn't notarized by Apple, so the first time macOS will refuse to open it: go to System Settings → Privacy & Security and click "Open Anyway". Or run `xattr -dr com.apple.quarantine "/Applications/Batch Beatmap Downloader.app"` once.
+
+**Linux**: use the `.AppImage` (`chmod +x` it and run it) or install the `.deb` on Debian/Ubuntu based distributions.
+
+On macOS and Linux the app tells you when a new version is out, but doesn't update itself.
+
+osu!stable running through wine works too. The app looks in the usual places (osu-winello, `~/.wine`, Lutris); otherwise choose the `osu!` folder inside your wine prefix.
 
 ### osu!lazer
 
@@ -117,16 +123,18 @@ osu!lazer keeps its maps in a database instead of a Songs folder, so downloaded 
 
 ### Building yourself
 
-Requires Node.js 22 or newer.
+Requires Node.js 22 or newer. Building for Linux also needs `squashfs-tools` (for the AppImage), `dpkg` and `fakeroot`; building for macOS has to happen on a Mac.
 
 ```bash
 cd client
 npm install
-npm start          # run in development mode
-npm run make:win   # build the installer into client/out/make
+npm start      # run in development mode
+npm run make   # build installers for the current system into client/out/make
 ```
 
 `npm run typecheck` and `npm run lint` check the code. Development builds keep their settings in a separate folder, so they don't interfere with an installed copy.
+
+GitHub Actions builds every platform for each pull request. Pushing a version tag (`v1.5.0`) collects the Windows, macOS (Apple Silicon and Intel) and Linux builds into a draft release.
 
 ## Project structure
 
@@ -138,6 +146,7 @@ npm run make:win   # build the installer into client/out/make
 | `client/src/models` | Types and filter logic shared by both sides |
 | `api` | The Go server behind the search and download endpoints (run by nzbasic) |
 | `download` | The Go downloader used by versions before 1.4 |
+| `.github/workflows` | Builds for every platform and draft releases |
 
 ## Contributing
 
