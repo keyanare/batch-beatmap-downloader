@@ -99,9 +99,9 @@ const encodeImportMessage = (file: string) => {
   return Buffer.concat([header, json]);
 };
 
-const sendOverPipe = (file: string) =>
+const sendOverPipe = (pipe: string, file: string) =>
   new Promise<void>((resolve, reject) => {
-    const socket = net.connect(lazerPipePath());
+    const socket = net.connect(pipe);
     const timeout = setTimeout(() => {
       socket.destroy();
       reject(new Error("Timed out talking to osu!lazer"));
@@ -124,8 +124,10 @@ const sendOverPipe = (file: string) =>
  * Imports files through the running game's IPC pipe. Only call this when lazer is running.
  */
 export const importWithPipe = async (files: string[]) => {
+  const pipe = await lazerPipePath();
+  if (!pipe) throw new Error("Couldn't find osu!lazer's IPC pipe");
   log.info(`Importing ${files.length} beatmaps into osu!lazer via IPC`);
   for (const file of files) {
-    await sendOverPipe(file);
+    await sendOverPipe(pipe, file);
   }
 };

@@ -6,7 +6,7 @@ import { AppSettings } from "../../models/ipc";
 import { emitNotice } from "../events";
 import { importWithExecutable, importWithPipe } from "../lazer/importer";
 import { addLazerCollection, readLazerDatabase } from "../lazer/realm";
-import { exists, isLazerFolder, listOszFiles, setIdFromName } from "../paths";
+import { exists, isLazerFolder, listOszFiles, resolveExecutable, setIdFromName } from "../paths";
 import { isLazerRunning } from "../processes";
 import { Library } from "./types";
 
@@ -34,8 +34,9 @@ export class LazerLibrary implements Library {
   }
 
   private async executable() {
-    const exe = this.settings.lazerExe;
-    return exe && (await exists(exe)) ? exe : null;
+    if (!this.settings.lazerExe) return null;
+    const exe = await resolveExecutable(this.settings.lazerExe);
+    return (await exists(exe)) ? exe : null;
   }
 
   warning() {

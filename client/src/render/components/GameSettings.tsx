@@ -5,6 +5,7 @@ import { AppSettings, GameClient } from "../../models/ipc";
 import { useLibrary } from "../context/LibraryProvider";
 import { useSettings } from "../context/SettingsProvider";
 import { formatNumber } from "../util/format";
+import { isWindows, lazerExecutableName } from "../util/platform";
 import { PathField } from "./PathField";
 import { Callout, Divider } from "./ui/Misc";
 import { Spinner } from "./ui/Progress";
@@ -96,7 +97,10 @@ const StableSettings = ({ settings }: { settings: AppSettings }) => {
   const { detected, update } = useSettings();
   return (
     <>
-      <SettingRow title="osu! folder" description="The folder with osu!.exe and your Songs folder">
+      <SettingRow
+        title="osu! folder"
+        description={isWindows ? "The folder with osu!.exe and your Songs folder" : "The osu! folder inside your wine prefix, with osu!.exe and your Songs folder"}
+      >
         <LibraryState />
       </SettingRow>
       <PathField
@@ -170,7 +174,7 @@ const LazerSettings = ({ settings }: { settings: AppSettings }) => {
         detected={detected?.lazerExe}
         kind="file"
         icon={Monitor}
-        dialogTitle="Select osu!.exe"
+        dialogTitle={`Select ${lazerExecutableName}`}
         placeholder="Optional"
       />
 

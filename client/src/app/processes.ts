@@ -15,11 +15,41 @@ export const LAZER_PIPE = "osu-framework-osu-lazer";
 
 const WINDOWS_PIPE_DIR = String.raw`\\.\pipe\ `.trim();
 
-export const lazerPipePath = () =>
-  process.platform === "win32"
-    ? WINDOWS_PIPE_DIR + LAZER_PIPE
-    : // .NET implements named pipes as unix sockets in the temp directory
-      path.join(process.env.TMPDIR || "/tmp", `CoreFxPipe_${LAZER_PIPE}`);
+// .NET implements named pipes as unix sockets in the temp directory
+const unixSocketCandidates = () => {
+  const dirs = [
+    process.env.TMPDIR,
+    os.tmpdir(),
+    "/tmp",
+    // The Flatpak version gets a temp directory of its own
+    path.join(os.homedir(), ".var", "app", "sh.ppy.osu", "cache", "tmp"),
+  ].filter((dir): dir is string => Boolean(dir));
+  return [...new Set(dirs)].map((dir) => path.join(dir, `CoreFxPipe_${LAZER_PIPE}`));
+};
+
+const findUnixSocket = async () => {
+  for (const candidate of unixSocketCandidates()) {
+    try {
+      if ((await fs.promises.lstat(candidate)).isSocket()) return candidate;
+    } catch {
+      // not there
+    }
+  }
+  return null;
+};
+
+/** Path of the running game's IPC pipe, or null if it can't be found. */
+export const lazerPipePath = async () =>
+  process.platform === "win32" ? WINDOWS_PIPE_DIR + LAZER_PIPE : findUnixSocket();
+
+// Names the osu!lazer process shows up as in ps (stable under wine is osu!.exe)
+const LAZER_PROCESS_NAMES = ["osu!", "osu"];
+
+const isLazerProcessRunning = async () => {
+  // On macOS comm is the full executable path, elsewhere it's the name
+  const output = await run("ps", ["-A", "-o", "comm="]);
+  return output.split(/\r?\n/).some((line) => LAZER_PROCESS_NAMES.includes(path.basename(line.trim())));
+};
 
 /**
  * Whether osu!lazer is running, based on its IPC pipe existing.
@@ -27,6 +57,8 @@ export const lazerPipePath = () =>
  * The pipe must never be opened just to check it: osu-framework's pipe server
  * gets stuck if a client connects without sending a message. On Windows listing
  * the pipe namespace is safe, while fs.exists/stat would connect to the pipe.
+ * Elsewhere the pipe is a socket file that can outlive a crashed game, so the
+ * process list is checked as well.
  */
 export const isLazerRunning = async () => {
   try {
@@ -34,8 +66,7 @@ export const isLazerRunning = async () => {
       const pipes = await fs.promises.readdir(WINDOWS_PIPE_DIR);
       return pipes.includes(LAZER_PIPE);
     }
-    const stat = await fs.promises.lstat(lazerPipePath());
-    return stat.isSocket();
+    return (await findUnixSocket()) !== null && (await isLazerProcessRunning());
   } catch {
     return false;
   }

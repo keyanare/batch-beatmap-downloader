@@ -1,5 +1,5 @@
 import "./app/dev-paths";
-import { app, nativeTheme } from "electron";
+import { app, Menu, nativeTheme } from "electron";
 import log from "electron-log/main";
 import { updateElectronApp } from "update-electron-app";
 import { removeLegacyDownloader } from "./app/cleanup";
@@ -9,6 +9,7 @@ import { registerIpc } from "./app/ipc";
 import { refreshLibraryStatus, startLibraryWatcher } from "./app/library";
 import { detectPaths } from "./app/paths";
 import { applyDetectedDefaults, getSettings } from "./app/store";
+import { checkForUpdates } from "./app/updates";
 import { createWindow } from "./app/window";
 
 log.initialize();
@@ -28,10 +29,18 @@ if (!app.requestSingleInstanceLock()) {
     window.focus();
   });
 
-  if (app.isPackaged) updateElectronApp({ logger: log });
+  // Only the Windows installer can update itself, other platforms get told about new versions instead
+  if (app.isPackaged && process.platform === "win32") updateElectronApp({ logger: log });
 
   app.whenReady().then(async () => {
     registerIpc();
+
+    // macOS needs an application menu for things like copy/paste and Cmd+Q to work
+    Menu.setApplicationMenu(
+      process.platform === "darwin"
+        ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }])
+        : null,
+    );
 
     await applyDetectedDefaults(detectPaths).catch((error) => log.error("Detecting osu! failed", error));
     const settings = await getSettings();
@@ -45,6 +54,7 @@ if (!app.requestSingleInstanceLock()) {
     startLibraryWatcher();
     removeLegacyDownloader();
     refreshLibraryStatus().catch((error) => log.error("Loading library failed", error));
+    if (app.isPackaged && process.platform !== "win32") setTimeout(checkForUpdates, 5000);
   });
 
   let quitting = false;

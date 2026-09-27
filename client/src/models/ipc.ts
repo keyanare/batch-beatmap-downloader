@@ -104,6 +104,12 @@ export interface CreateDownloadOptions {
   collectionName?: string;
 }
 
+export interface UpdateInfo {
+  version: string;
+  /** Release page to download it from. */
+  url: string;
+}
+
 export interface Notice {
   type: "error" | "info" | "success";
   message: string;

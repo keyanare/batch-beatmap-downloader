@@ -1,9 +1,10 @@
-import { Notice } from "../models/ipc";
+import { Notice, UpdateInfo } from "../models/ipc";
 import { invoke, subscribe } from "./invoke";
 
 export const systemBridge = {
   getVersion: () => invoke<string>("app:version"),
   getPlatform: () => invoke<NodeJS.Platform>("app:platform"),
+  getAvailableUpdate: () => invoke<UpdateInfo | null>("app:update"),
   openExternal: (url: string) => invoke<void>("app:open-external", url),
   openPath: (path: string) => invoke<void>("app:open-path", path),
   browseFolder: (title?: string, defaultPath?: string) => invoke<string | null>("app:browse-folder", title, defaultPath),

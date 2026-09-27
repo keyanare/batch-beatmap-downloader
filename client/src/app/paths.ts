@@ -43,11 +43,64 @@ const stableFromRegistry = async () => {
   return match ? path.dirname(match[1]) : null;
 };
 
+const listDir = async (dir: string) => {
+  try {
+    return await fs.promises.readdir(dir);
+  } catch {
+    return [];
+  }
+};
+
+/** App bundles in the Applications folders whose name matches. */
+const macApps = async (pattern: RegExp) => {
+  const folders = ["/Applications", path.join(os.homedir(), "Applications")];
+  const apps: string[] = [];
+  for (const folder of folders) {
+    for (const name of await listDir(folder)) {
+      if (name.endsWith(".app") && pattern.test(name)) apps.push(path.join(folder, name));
+    }
+  }
+  return apps;
+};
+
+// Where osu!stable usually ends up when it runs through wine
+const wineStableCandidates = async () => {
+  const home = os.homedir();
+  const user = os.userInfo().username;
+  const inPrefix = (prefix: string) => [
+    path.join(prefix, "drive_c", "users", user, "AppData", "Local", "osu!"),
+    path.join(prefix, "drive_c", "osu!"),
+    path.join(prefix, "drive_c", "Program Files", "osu!"),
+  ];
+
+  const candidates = [
+    // osu-winello
+    path.join(home, ".local", "share", "osu-wine", "osu!"),
+    path.join(home, ".local", "share", "osu-wine", "OSU"),
+    ...inPrefix(path.join(home, ".wine")),
+    ...inPrefix(path.join(home, ".local", "share", "wineprefixes", "osu")),
+    // Lutris
+    ...inPrefix(path.join(home, "Games", "osu")),
+    ...inPrefix(path.join(home, "Games", "osu-stable")),
+  ];
+
+  if (process.platform === "darwin") {
+    // Wine wrapped osu!stable apps
+    for (const app of await macApps(/osu/i)) {
+      candidates.push(...inPrefix(path.join(app, "Contents", "Resources")));
+      candidates.push(...inPrefix(path.join(app, "Contents", "SharedSupport", "prefix")));
+    }
+  }
+  return candidates;
+};
+
 export const detectStablePath = async () => {
   const candidates: (string | null)[] = [];
   if (process.platform === "win32") {
     candidates.push(await stableFromRegistry());
     if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, "osu!"));
+  } else {
+    candidates.push(...(await wineStableCandidates()));
   }
 
   for (const candidate of candidates) {
@@ -84,28 +137,98 @@ const customLazerDataDir = async (defaultDir: string) => {
   }
 };
 
+// The Flatpak version keeps its data inside its own sandbox folder
+const FLATPAK_ID = "sh.ppy.osu";
+const flatpakLazerDataDir = () => path.join(os.homedir(), ".var", "app", FLATPAK_ID, "data", "osu");
+
 export const detectLazerPath = async () => {
-  const defaultDir = defaultLazerDataDir();
-  const custom = await customLazerDataDir(defaultDir);
-  for (const candidate of [custom, defaultDir]) {
-    if (candidate && (await isLazerFolder(candidate))) return candidate;
+  const defaults = [defaultLazerDataDir()];
+  if (process.platform === "linux") defaults.push(flatpakLazerDataDir());
+
+  for (const defaultDir of defaults) {
+    const custom = await customLazerDataDir(defaultDir);
+    for (const candidate of [custom, defaultDir]) {
+      if (candidate && (await isLazerFolder(candidate))) return candidate;
+    }
   }
   return null;
 };
 
-export const detectLazerExe = async () => {
+const which = async (command: string) => {
+  const output = await run("which", [command]);
+  return output.trim().split(/\r?\n/)[0] || null;
+};
+
+const linuxLazerCandidates = async () => {
+  const home = os.homedir();
+  const candidates: (string | null)[] = [
+    // AUR and other packages provide a launcher
+    await which("osu-lazer"),
+    await which("osu!"),
+  ];
+
+  // The official AppImage, wherever people usually keep AppImages
+  for (const folder of [
+    path.join(home, "Applications"),
+    path.join(home, ".local", "bin"),
+    path.join(home, "Downloads"),
+    path.join(home, "Desktop"),
+    "/opt/osu-lazer",
+    "/opt/osu",
+  ]) {
+    for (const name of await listDir(folder)) {
+      if (/^osu.*\.appimage$/i.test(name)) candidates.push(path.join(folder, name));
+    }
+  }
+
+  candidates.push(
+    path.join(home, ".local", "share", "flatpak", "exports", "bin", FLATPAK_ID),
+    path.join("/var", "lib", "flatpak", "exports", "bin", FLATPAK_ID),
+  );
+  return candidates;
+};
+
+const macLazerCandidates = async () => {
   const candidates: string[] = [];
-  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
-    candidates.push(path.join(process.env.LOCALAPPDATA, "osulazer", "current", "osu!.exe"));
+  for (const app of await macApps(/^osu/i)) {
+    // Skip wine wrapped osu!stable apps
+    if (await isDirectory(path.join(app, "Contents", "Resources", "drive_c"))) continue;
+    if (await isDirectory(path.join(app, "Contents", "SharedSupport", "prefix"))) continue;
+    candidates.push(await resolveExecutable(app));
+  }
+  return candidates;
+};
+
+export const detectLazerExe = async () => {
+  let candidates: (string | null)[] = [];
+  if (process.platform === "win32") {
+    if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, "osulazer", "current", "osu!.exe"));
   } else if (process.platform === "darwin") {
-    candidates.push("/Applications/osu!.app/Contents/MacOS/osu!");
-    candidates.push(path.join(os.homedir(), "Applications", "osu!.app", "Contents", "MacOS", "osu!"));
+    candidates = await macLazerCandidates();
+  } else {
+    candidates = await linuxLazerCandidates();
   }
 
   for (const candidate of candidates) {
-    if (await exists(candidate)) return candidate;
+    if (candidate && (await exists(candidate))) return candidate;
   }
   return null;
+};
+
+/**
+ * Turns a macOS .app bundle into the executable inside it, so either can be chosen in settings.
+ */
+export const resolveExecutable = async (target: string) => {
+  if (process.platform !== "darwin" || !target.endsWith(".app")) return target;
+  let name = path.basename(target, ".app");
+  try {
+    const plist = await fs.promises.readFile(path.join(target, "Contents", "Info.plist"), "utf8");
+    const match = /<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/.exec(plist);
+    if (match) name = match[1];
+  } catch {
+    // Binary plist or missing, fall back to the bundle name
+  }
+  return path.join(target, "Contents", "MacOS", name);
 };
 
 export const detectPaths = async (): Promise<DetectedPaths> => {
