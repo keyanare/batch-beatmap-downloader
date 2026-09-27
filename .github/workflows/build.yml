@@ -1,0 +1,94 @@
+name: Build
+
+# Builds the app for every platform. Pushing a version tag (v1.2.3) also collects everything into a
+# draft release to check and publish.
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+        env:
+          REALM_DISABLE_ANALYTICS: 1
+      - run: npm run typecheck
+      - run: npm run lint
+
+  build:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-arm64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: ubuntu-latest
+            target: linux-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools fakeroot dpkg zip
+      - run: npm ci
+        env:
+          REALM_DISABLE_ANALYTICS: 1
+      - run: npm run make
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            client/out/make/**/*.exe
+            client/out/make/**/*.nupkg
+            client/out/make/**/RELEASES
+            client/out/make/**/*.dmg
+            client/out/make/**/*.zip
+            client/out/make/**/*.deb
+            client/out/make/**/*.AppImage
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: List files
+        run: find artifacts -type f -exec ls -la {} +
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: artifacts/**/*
