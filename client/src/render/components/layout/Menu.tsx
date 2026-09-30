@@ -7,6 +7,7 @@ import { useLibrary } from "../../context/LibraryProvider";
 import { useStatus } from "../../context/StatusProvider";
 import { formatNumber, formatSpeed } from "../../util/format";
 import { Progress } from "../ui/Progress";
+import { UpdatePill } from "../UpdateNotice";
 
 interface Page {
   to: string;
@@ -90,6 +91,7 @@ export const Menu = () => {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">
+        <UpdatePill />
         <DownloadActivity />
 
         {library?.valid && (

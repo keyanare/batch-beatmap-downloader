@@ -105,9 +105,15 @@ export interface CreateDownloadOptions {
 }
 
 export interface UpdateInfo {
+  /** Empty while Squirrel is downloading and the version isn't known yet. */
   version: string;
   /** Release page to download it from. */
   url: string;
+  /**
+   * available: a newer release exists (macOS/Linux, which can't update themselves).
+   * downloading / ready: Windows is fetching the update in the background / can restart into it.
+   */
+  state: "available" | "downloading" | "ready";
 }
 
 export interface Notice {

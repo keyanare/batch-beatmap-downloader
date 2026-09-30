@@ -1,14 +1,14 @@
 import Slider from "rc-slider";
-import { ArrowDownToLine, Download, Gamepad2, Info, Moon, Paintbrush, Sun } from "lucide-react";
+import { Download, Gamepad2, Info, Moon, Paintbrush, Sun } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { GameSettings } from "../components/GameSettings";
+import { UpdateCallout } from "../components/UpdateNotice";
 import { Button } from "../components/ui/Button";
 import { Card, PageHeader } from "../components/ui/Card";
-import { Callout, Divider } from "../components/ui/Misc";
+import { Divider } from "../components/ui/Misc";
 import { Segmented } from "../components/ui/Segmented";
 import { SettingRow } from "../components/ui/Toggle";
 import { useSettings } from "../context/SettingsProvider";
-import { UpdateInfo } from "../../models/ipc";
 
 const MAX_PARALLEL = 16;
 
@@ -42,11 +42,9 @@ const ParallelDownloads = () => {
 export const SettingsPage = () => {
   const { settings, update } = useSettings();
   const [version, setVersion] = useState("");
-  const [newVersion, setNewVersion] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
     window.electron.getVersion().then(setVersion);
-    window.electron.getAvailableUpdate().then(setNewVersion);
   }, []);
 
   if (!settings) return null;
@@ -77,20 +75,7 @@ export const SettingsPage = () => {
       </Card>
 
       <Card title="About" icon={Info}>
-        {newVersion && (
-          <Callout
-            tone="info"
-            className="mb-4"
-            title={`Version ${newVersion.version} is available`}
-            action={
-              <Button variant="primary" size="sm" icon={ArrowDownToLine} onClick={() => window.electron.openExternal(newVersion.url)}>
-                Download
-              </Button>
-            }
-          >
-            Install it over this version, your settings stay.
-          </Callout>
-        )}
+        <UpdateCallout className="mb-4" />
         <div className="text-[13px] leading-6 text-fg-muted">
           Batch Beatmap Downloader v{version}, created by nzbasic, with osu!lazer support from keyanare&apos;s fork.
           Beatmaps are served from nzbasic&apos;s Batch Beatmap Downloader server, not from osu! itself.

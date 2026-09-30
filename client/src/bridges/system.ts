@@ -4,7 +4,9 @@ import { invoke, subscribe } from "./invoke";
 export const systemBridge = {
   getVersion: () => invoke<string>("app:version"),
   getPlatform: () => invoke<NodeJS.Platform>("app:platform"),
-  getAvailableUpdate: () => invoke<UpdateInfo | null>("app:update"),
+  getUpdate: () => invoke<UpdateInfo | null>("app:update"),
+  installUpdate: () => invoke<void>("app:install-update"),
+  onUpdate: (callback: (update: UpdateInfo) => void) => subscribe("app:update", callback),
   openExternal: (url: string) => invoke<void>("app:open-external", url),
   openPath: (path: string) => invoke<void>("app:open-path", path),
   browseFolder: (title?: string, defaultPath?: string) => invoke<string | null>("app:browse-folder", title, defaultPath),

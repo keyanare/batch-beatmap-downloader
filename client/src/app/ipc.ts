@@ -16,7 +16,7 @@ import { detectPaths, exists } from "./paths";
 import { downloadMissingMaps, downloadSearch, findMissingMaps, getResultPage, search } from "./search";
 import { getMetrics } from "./server";
 import { getSettings, updateSettings } from "./store";
-import { getAvailableUpdate } from "./updates";
+import { getUpdate, installUpdate } from "./updates";
 import { applyWindowTheme } from "./window";
 
 type Handler = (...args: never[]) => unknown;
@@ -37,7 +37,8 @@ export const registerIpc = () => {
   // app
   handle("app:version", () => app.getVersion());
   handle("app:platform", () => process.platform);
-  handle("app:update", () => getAvailableUpdate());
+  handle("app:update", () => getUpdate());
+  handle("app:install-update", () => installUpdate());
   handle("app:open-external", (url: string) => {
     if (isWebUrl(url)) return shell.openExternal(url);
   });

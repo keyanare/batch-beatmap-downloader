@@ -1,15 +1,15 @@
 import "./app/dev-paths";
 import { app, Menu, nativeTheme } from "electron";
 import log from "electron-log/main";
-import { updateElectronApp } from "update-electron-app";
 import { removeLegacyDownloader } from "./app/cleanup";
 import { loadDownloads, shutdownDownloads } from "./app/download/manager";
 import { getWindow, setWindow } from "./app/events";
+import { isQuitting, setQuitting } from "./app/lifecycle";
 import { registerIpc } from "./app/ipc";
 import { refreshLibraryStatus, startLibraryWatcher } from "./app/library";
 import { detectPaths } from "./app/paths";
 import { applyDetectedDefaults, getSettings } from "./app/store";
-import { checkForUpdates } from "./app/updates";
+import { setupUpdates } from "./app/updates";
 import { createWindow } from "./app/window";
 
 log.initialize();
@@ -28,9 +28,6 @@ if (!app.requestSingleInstanceLock()) {
     if (window.isMinimized()) window.restore();
     window.focus();
   });
-
-  // Only the Windows installer can update itself, other platforms get told about new versions instead
-  if (app.isPackaged && process.platform === "win32") updateElectronApp({ logger: log });
 
   app.whenReady().then(async () => {
     registerIpc();
@@ -54,15 +51,14 @@ if (!app.requestSingleInstanceLock()) {
     startLibraryWatcher();
     removeLegacyDownloader();
     refreshLibraryStatus().catch((error) => log.error("Loading library failed", error));
-    if (app.isPackaged && process.platform !== "win32") setTimeout(checkForUpdates, 5000);
+    setupUpdates();
   });
 
-  let quitting = false;
   app.on("before-quit", (event) => {
-    if (quitting) return;
+    if (isQuitting()) return;
     // Stop downloads cleanly and save their progress before exiting
     event.preventDefault();
-    quitting = true;
+    setQuitting();
     shutdownDownloads()
       .catch((error) => log.error("Saving downloads on exit failed", error))
       .finally(() => app.quit());
