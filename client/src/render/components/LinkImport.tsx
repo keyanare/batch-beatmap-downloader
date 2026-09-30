@@ -2,7 +2,7 @@ import { CircleAlert, Link2, Search } from "lucide-react";
 import React, { useState } from "react";
 import { toast } from "react-toastify";
 import { LinkLookup, UserMapList } from "../../models/ipc";
-import { formatNumber, plural } from "../util/format";
+import { plural } from "../util/format";
 import { DownloadSettings } from "./DownloadSettings";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
@@ -21,6 +21,7 @@ const examples = [
   "osucollector.com/tournaments/…",
   "osu.ppy.sh/beatmapsets/…",
   "osu.ppy.sh/community/matches/…",
+  "osu.ppy.sh/multiplayer/rooms/…",
   "osu.ppy.sh/users/…",
 ];
 
@@ -47,7 +48,7 @@ export const LinkImport = () => {
     ? [
         result.notOnServer > 0 &&
           `${plural(result.notOnServer, "set")} aren't on the server and will come from mirrors (not counted in the size)`,
-        result.unresolved > 0 && `${formatNumber(result.unresolved)} beatmaps couldn't be found`,
+        result.unresolved > 0 && `${plural(result.unresolved, "beatmap")} couldn't be found`,
       ].filter((note): note is string => Boolean(note))
     : [];
 
@@ -55,7 +56,7 @@ export const LinkImport = () => {
     <Card
       title="Add maps from links"
       icon={Link2}
-      description="osu!collector collections and tournaments, beatmap links from a mappool, multiplayer matches or player profiles"
+      description="osu!collector collections and tournaments, beatmap links from a mappool, multiplayer matches and rooms, or player profiles"
     >
       <div className="flex flex-col gap-3">
         <textarea

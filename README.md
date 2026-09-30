@@ -60,7 +60,7 @@ Batch Beatmap Downloader provides an easy way to download a lot of osu! beatmaps
 - Maps you already have are skipped
 - Add downloaded maps to a new or existing collection
 - Download maps that are missing from your collections
-- Paste links and get the maps as a collection: osu!collector collections and tournaments, beatmap links from a mappool or forum post, multiplayer matches, or a player's maps, favourites and top plays
+- Paste links and get the maps as a collection: osu!collector collections and tournaments, beatmap links from a mappool or forum post, multiplayer matches, osu!lazer multiplayer rooms, or a player's maps, favourites and top plays
 - Update every outdated map in your library at once, collections move over to the new versions
 - Maps the server doesn't have, or only has an old version of, come from public mirrors instead
 - Pause, resume and retry failed maps; downloads carry on after restarting the app
@@ -78,7 +78,7 @@ Batch Beatmap Downloader provides an easy way to download a lot of osu! beatmaps
 
 **Maps from links**
 
-Paste one or more links into the box on the home page: an [osu!collector](https://osucollector.com) collection or tournament, beatmap links (a whole mappool copied out of a spreadsheet works), a multiplayer match, or a player's profile to get their maps, favourites or top plays. You see how many maps you already have, and can download the rest and put everything in a collection in one go.
+Paste one or more links into the box on the home page: an [osu!collector](https://osucollector.com) collection or tournament, beatmap links (a whole mappool copied out of a spreadsheet works), a multiplayer match or osu!lazer room, or a player's profile to get their maps, favourites or top plays. You see how many maps you already have, and can download the rest and put everything in a collection in one go.
 
 **Map updates**
 

@@ -16,7 +16,7 @@ export const changeLog: ChangeLogItem[] = [
         title: "Maps from links",
         changes: [
           "Paste links on the home page to download the maps and put them in a collection",
-          "Works with osu!collector collections and tournaments, beatmap and set links (a mappool copied out of a spreadsheet or forum post works too), multiplayer matches and player profiles",
+          "Works with osu!collector collections and tournaments, beatmap and set links (a mappool copied out of a spreadsheet or forum post works too), multiplayer matches, osu!lazer multiplayer rooms and player profiles",
           "For players: their maps (guest difficulties included), favourites or top plays",
         ],
       },

@@ -105,6 +105,75 @@ export const getMatch = async (matchId: number) => {
   return { name, beatmaps };
 };
 
+// osu!lazer multiplayer and playlist rooms
+
+interface RoomPage {
+  room: { name: string };
+  events: { id: number }[];
+  playlist_items: { id: number; beatmap_id: number }[];
+  beatmaps: RawBeatmap[];
+  first_event_id: number;
+}
+
+const PANEL = /data-beatmapset-panel="([^"]*)"/g;
+
+const decodeEntities = (text: string) =>
+  text.replace(/&(#x[0-9a-f]+|#\d+|quot|amp|lt|gt|apos);/gi, (entity, code: string) => {
+    const named: Record<string, string> = { quot: '"', amp: "&", lt: "<", gt: ">", apos: "'" };
+    if (code[0] !== "#") return named[code.toLowerCase()] ?? entity;
+    return String.fromCodePoint(code[1].toLowerCase() === "x" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10));
+  });
+
+/** The sets shown on a room's page, with the checksums of all their difficulties. */
+const roomPageSets = async (roomId: number) => {
+  const html = await getText(`${OSU}/multiplayer/rooms/${roomId}`);
+  const sets = new Map<number, WebBeatmap[]>();
+  for (const [, attribute] of html.matchAll(PANEL)) {
+    try {
+      const { beatmapset } = JSON.parse(decodeEntities(attribute)) as { beatmapset: RawBeatmapset };
+      sets.set(beatmapset.id, setBeatmaps(beatmapset));
+    } catch {
+      // Not a panel we understand
+    }
+  }
+  return sets;
+};
+
+/**
+ * Name of an osu!lazer room and the beatmaps on its playlist, in order. Rooms nobody played in have no
+ * playlist in their history, then whole sets from the room's page are all there is.
+ */
+export const getRoom = async (roomId: number) => {
+  const items = new Map<number, number>();
+  const setOf = new Map<number, number>();
+  const collect = (page: RoomPage) => {
+    for (const item of page.playlist_items) items.set(item.id, item.beatmap_id);
+    for (const beatmap of page.beatmaps) setOf.set(beatmap.id, beatmap.beatmapset_id);
+  };
+
+  // Same paging as matches: newest events first
+  let current = await getJson<RoomPage>(`${OSU}/multiplayer/rooms/${roomId}/events`);
+  const name = current.room.name;
+  collect(current);
+  for (let pages = 1; pages < MAX_MATCH_PAGES && current.events.length; pages++) {
+    const oldest = Math.min(...current.events.map((event) => event.id));
+    if (oldest <= current.first_event_id) break;
+    current = await getJson<RoomPage>(`${OSU}/multiplayer/rooms/${roomId}/events?before=${oldest}&limit=100`);
+    collect(current);
+  }
+
+  // The page has the checksums the events leave out
+  const sets = await roomPageSets(roomId).catch(() => new Map<number, WebBeatmap[]>());
+  const checksums = new Map([...sets.values()].flat().map((beatmap) => [beatmap.id, beatmap]));
+
+  const playlist = [...new Set([...items.entries()].sort(([a], [b]) => a - b).map(([, beatmapId]) => beatmapId))];
+  const beatmaps: WebBeatmap[] = playlist.map(
+    (beatmapId) => checksums.get(beatmapId) ?? { id: beatmapId, setId: setOf.get(beatmapId) ?? 0, checksum: "" },
+  );
+  if (!beatmaps.length) beatmaps.push(...[...sets.values()].flat());
+  return { name, beatmaps };
+};
+
 // Players
 
 export interface WebUser {

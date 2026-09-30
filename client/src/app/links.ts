@@ -1,7 +1,7 @@
 import log from "electron-log/main";
 import { FilterResponse } from "../models/api";
 import { LinkLookup, UserMapList } from "../models/ipc";
-import { getBeatmapset, getBeatmapsetOf, getMatch, getUser, getUserBeatmaps, WebBeatmapset } from "./osuWeb";
+import { getBeatmapset, getBeatmapsetOf, getMatch, getRoom, getUser, getUserBeatmaps, WebBeatmapset } from "./osuWeb";
 import { storeResults } from "./search";
 import { tryBeatmapDetails, tryServerSets } from "./server";
 import { getJson, isNotFound } from "./web";
@@ -13,6 +13,7 @@ export interface LinkSources {
   collections: number[];
   tournaments: number[];
   matches: number[];
+  rooms: number[];
   users: { key: string; mode: string }[];
   beatmapIds: number[];
   setIds: number[];
@@ -28,7 +29,15 @@ const number = (value: string | undefined | null) => {
 };
 
 export const parseLinks = (text: string): LinkSources => {
-  const sources: LinkSources = { collections: [], tournaments: [], matches: [], users: [], beatmapIds: [], setIds: [] };
+  const sources: LinkSources = {
+    collections: [],
+    tournaments: [],
+    matches: [],
+    rooms: [],
+    users: [],
+    beatmapIds: [],
+    setIds: [],
+  };
   const add = <T>(list: T[], value: T | null) => {
     if (value !== null && !list.includes(value)) list.push(value);
   };
@@ -70,6 +79,8 @@ export const parseLinks = (text: string): LinkSources => {
     } else if (kind === "p" && second === "beatmap") {
       if (url.searchParams.has("b")) add(sources.beatmapIds, number(url.searchParams.get("b")));
       else add(sources.setIds, number(url.searchParams.get("s")));
+    } else if (kind === "multiplayer" && second?.toLowerCase() === "rooms") {
+      add(sources.rooms, number(third));
     } else if ((kind === "community" && second?.toLowerCase() === "matches") || kind === "mp") {
       add(sources.matches, number(kind === "mp" ? second : third));
     } else if ((kind === "users" || kind === "u") && second) {
@@ -86,6 +97,7 @@ export const countSources = (sources: LinkSources) =>
   sources.collections.length +
   sources.tournaments.length +
   sources.matches.length +
+  sources.rooms.length +
   sources.users.length +
   sources.beatmapIds.length +
   sources.setIds.length;
@@ -169,6 +181,19 @@ export const lookupLinks = async (text: string, userList: UserMapList): Promise<
     }
   }
 
+  for (const id of sources.rooms) {
+    try {
+      const room = await getRoom(id);
+      titles.push(room.name);
+      for (const beatmap of room.beatmaps) {
+        beatmaps.push({ setId: beatmap.setId || undefined, beatmapId: beatmap.id, hash: beatmap.checksum || undefined });
+      }
+    } catch (error) {
+      if (isNotFound(error)) throw new Error(`Multiplayer room ${id} doesn't exist`);
+      throw error;
+    }
+  }
+
   for (const { key, mode } of sources.users) {
     const user = await getUser(key);
     if (!user) throw new Error(`There's no player called ${key}`);
@@ -247,6 +272,8 @@ export const lookupLinks = async (text: string, userList: UserMapList): Promise<
     }
     for (const hash of setHashes) if (hash) hashes.add(hash);
   }
+
+  if (!setIds.size && !hashes.size) throw new Error("There are no maps behind those links");
 
   // Sets the server doesn't have come from the mirrors, which don't say how big they are
   const sizes: Record<string, number> = {};
