@@ -12,6 +12,10 @@ import { Toggle } from "./ui/Toggle";
 
 interface DownloadSettingsProps {
   summary: SearchSummary;
+  /** Turns "Add to a collection" on with this name. */
+  collectionName?: string;
+  /** What the maps are, for the collection description. */
+  source?: string;
 }
 
 const Figure = ({ label, value }: { label: string; value: React.ReactNode }) => (
@@ -21,12 +25,12 @@ const Figure = ({ label, value }: { label: string; value: React.ReactNode }) => 
   </div>
 );
 
-export const DownloadSettings = ({ summary }: DownloadSettingsProps) => {
+export const DownloadSettings = ({ summary, collectionName: suggestedName, source = "this search" }: DownloadSettingsProps) => {
   const navigate = useNavigate();
   const { library } = useLibrary();
   const [force, setForce] = useState(false);
-  const [collection, setCollection] = useState(false);
-  const [collectionName, setCollectionName] = useState("");
+  const [collection, setCollection] = useState(Boolean(suggestedName));
+  const [collectionName, setCollectionName] = useState(suggestedName ?? "");
   const [starting, setStarting] = useState(false);
 
   const owned = summary.sets - summary.newSets;
@@ -81,7 +85,7 @@ export const DownloadSettings = ({ summary }: DownloadSettingsProps) => {
             <div>
               <div className="text-[13px] font-medium">Add to a collection</div>
               <div className="text-xs text-fg-subtle">
-                All {plural(summary.beatmaps, "beatmap")} from this search, including ones you already have
+                All {plural(summary.beatmaps, "beatmap")} from {source}, including ones you already have
               </div>
             </div>
             <Toggle checked={collection} onChange={setCollection} />
@@ -106,7 +110,7 @@ export const DownloadSettings = ({ summary }: DownloadSettingsProps) => {
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        {sets === 0 && <span className="text-[13px] text-fg-subtle">You already have every set from this search</span>}
+        {sets === 0 && <span className="text-[13px] text-fg-subtle">You already have every set from {source}</span>}
         <Button
           variant="primary"
           size="lg"

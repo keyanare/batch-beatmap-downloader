@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { BasicStatus } from "../components/BasicStatus";
 import { GameSettings } from "../components/GameSettings";
 import { LibraryPanel, PendingNotices } from "../components/LibraryPanel";
+import { LinkImport } from "../components/LinkImport";
+import { MapUpdates } from "../components/MapUpdates";
 import { FindMissingMaps } from "../components/MissingMaps";
 import { SampleFilters } from "../components/SampleFilters";
 import { Logo } from "../components/layout/Logo";
@@ -45,7 +47,7 @@ export const Home = () => {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Home"
-        description="Find maps, fill the gaps in your collections and keep an eye on downloads"
+        description="Find maps, grab packs from links, keep your library up to date and fill the gaps in your collections"
         actions={
           <Button variant="primary" icon={Search} onClick={() => navigate("/search")}>
             Search beatmaps
@@ -54,9 +56,13 @@ export const Home = () => {
       />
       <PendingNotices />
       <LibraryPanel />
+      <LinkImport />
       <SampleFilters />
       <div className="grid grid-cols-[1fr_320px] items-start gap-5">
-        <FindMissingMaps />
+        <div className="flex flex-col gap-5">
+          <MapUpdates />
+          <FindMissingMaps />
+        </div>
         <BasicStatus />
       </div>
     </div>

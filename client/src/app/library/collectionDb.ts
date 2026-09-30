@@ -125,6 +125,22 @@ export const mergeCollection = (db: CollectionDb, name: string, hashes: string[]
   return added;
 };
 
+/** Swaps hashes in every collection (old -> new), returns how many entries changed. */
+export const replaceHashes = (db: CollectionDb, replacements: Map<string, string>) => {
+  let replaced = 0;
+  for (const collection of db.collections) {
+    if (!collection.hashes.some((hash) => replacements.has(hash))) continue;
+    const next = new Set<string>();
+    for (const hash of collection.hashes) {
+      const value = replacements.get(hash) ?? hash;
+      if (value !== hash) replaced++;
+      next.add(value);
+    }
+    collection.hashes = [...next];
+  }
+  return replaced;
+};
+
 /** Writes via a temp file so a crash never leaves a half written collection.db behind. */
 export const writeCollectionDb = async (file: string, db: CollectionDb) => {
   const buffer = serializeCollectionDb(db);

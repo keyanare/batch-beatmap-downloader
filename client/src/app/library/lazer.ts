@@ -5,7 +5,7 @@ import log from "electron-log/main";
 import { AppSettings } from "../../models/ipc";
 import { importWithExecutable, importWithPipe } from "../lazer/importer";
 import { importProgress, pumpImports } from "../lazer/importQueue";
-import { addLazerCollection, readLazerDatabase } from "../lazer/realm";
+import { addLazerCollection, readLazerBeatmaps, readLazerDatabase, replaceLazerCollectionHashes } from "../lazer/realm";
 import { exists, isLazerFolder, listOszFiles, resolveExecutable, setIdFromName } from "../paths";
 import { isLazerRunning } from "../processes";
 import { Library } from "./types";
@@ -74,6 +74,18 @@ export class LazerLibrary implements Library {
 
   writeCollection(name: string, hashes: string[]) {
     return addLazerCollection(this.root, name, hashes);
+  }
+
+  replaceCollectionHashes(replacements: Map<string, string>) {
+    return replaceLazerCollectionHashes(this.root, replacements);
+  }
+
+  localBeatmaps() {
+    return readLazerBeatmaps(this.root);
+  }
+
+  async presentHashes() {
+    return (await readLazerDatabase(this.root)).hashes;
   }
 
   async downloadDir() {

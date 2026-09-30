@@ -4,11 +4,17 @@ import log from "electron-log/main";
 import { AppSettings } from "../../models/ipc";
 import { exists, isDirectory, isStableFolder, listOszFiles, moveFile, setIdFromName } from "../paths";
 import { isStableRunning } from "../processes";
-import { mergeCollection, readCollectionDb, writeCollectionDb } from "./collectionDb";
-import { Library } from "./types";
+import { mergeCollection, readCollectionDb, replaceHashes, writeCollectionDb } from "./collectionDb";
+import { OsuDb, readOsuDb } from "./osuDb";
+import { Library, LocalBeatmap } from "./types";
 
 // Version written into a brand new collection.db when osu!.db can't tell us the client version.
 const DEFAULT_DB_VERSION = 20240820;
+
+// Where the folders of updated sets go, next to the Songs folder
+const OLD_VERSIONS = "bbd-old-versions";
+
+let osuDbCache: { key: string; db: OsuDb } | null = null;
 
 export class StableLibrary implements Library {
   readonly client = "stable" as const;
@@ -85,6 +91,63 @@ export class StableLibrary implements Library {
     } catch {
       return DEFAULT_DB_VERSION;
     }
+  }
+
+  private async osuDb() {
+    const file = path.join(this.root, "osu!.db");
+    const stat = await fs.promises.stat(file);
+    const key = `${file}:${stat.size}:${stat.mtimeMs}`;
+    if (osuDbCache?.key !== key) osuDbCache = { key, db: await readOsuDb(file) };
+    return osuDbCache.db;
+  }
+
+  async localBeatmaps(): Promise<LocalBeatmap[]> {
+    return (await this.osuDb()).beatmaps
+      .filter((beatmap) => beatmap.setId > 0 && beatmap.md5)
+      .map((beatmap) => ({
+        setId: beatmap.setId,
+        beatmapId: beatmap.beatmapId,
+        md5: beatmap.md5,
+        modified: false,
+        folder: beatmap.folder,
+        artist: beatmap.artist,
+        title: beatmap.title,
+        creator: beatmap.creator,
+      }));
+  }
+
+  async presentHashes() {
+    return new Set((await this.osuDb()).beatmaps.map((beatmap) => beatmap.md5));
+  }
+
+  async retireFolders(folders: string[]) {
+    const target = path.join(path.dirname(this.songsDir), OLD_VERSIONS);
+    await fs.promises.mkdir(target, { recursive: true });
+    for (const folder of folders) {
+      const from = path.join(this.songsDir, folder);
+      if (!folder || !(await isDirectory(from))) continue;
+      let to = path.join(target, folder);
+      for (let i = 2; await exists(to); i++) to = path.join(target, `${folder} (${i})`);
+      try {
+        await fs.promises.rename(from, to);
+      } catch (error) {
+        // Songs folder on another drive
+        if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+        await fs.promises.cp(from, to, { recursive: true });
+        await fs.promises.rm(from, { recursive: true, force: true });
+      }
+      log.info(`Moved the old version of ${folder} to ${target}`);
+    }
+  }
+
+  async replaceCollectionHashes(replacements: Map<string, string>) {
+    const db = await readCollectionDb(this.collectionDb, await this.clientVersion());
+    const replaced = replaceHashes(db, replacements);
+    if (!replaced) return 0;
+    await fs.promises.copyFile(this.collectionDb, `${this.collectionDb}.bbd-backup`);
+    await writeCollectionDb(this.collectionDb, db);
+    log.info(`Swapped ${replaced} updated beatmaps in stable collections`);
+    return replaced;
   }
 
   async writeCollection(name: string, hashes: string[]) {

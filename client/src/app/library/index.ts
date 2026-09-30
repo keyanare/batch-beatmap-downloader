@@ -2,6 +2,7 @@ import log from "electron-log/main";
 import { GameClient, LibraryStatus } from "../../models/ipc";
 import { emitError, emitLibrary, emitNotice } from "../events";
 import { exists } from "../paths";
+import { fixUpdatedCollections } from "../mapUpdates";
 import { getSettings, getValue, setValue } from "../store";
 import { LazerLibrary } from "./lazer";
 import { StableLibrary } from "./stable";
@@ -183,6 +184,9 @@ const tick = async () => {
 
   await library.tick();
   await writePendingCollections(library);
+  if (!(await library.isRunning())) {
+    await fixUpdatedCollections(library).catch((error) => log.error("Updating collections after map updates failed", error));
+  }
 
   // Let the UI know when the game was opened/closed or imports progressed
   const running = await library.isRunning();

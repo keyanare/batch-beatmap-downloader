@@ -6,6 +6,7 @@ export const downloadsBridge = {
   downloadSearch: (searchId: string, options: CreateDownloadOptions) =>
     invoke<DownloadInfo | null>("downloads:from-search", searchId, options),
   downloadMissing: () => invoke<DownloadInfo | null>("downloads:missing"),
+  downloadMapUpdates: () => invoke<DownloadInfo | null>("downloads:map-updates"),
   pauseDownload: (id: string) => invoke<void>("downloads:pause", id),
   resumeDownload: (id: string) => invoke<void>("downloads:resume", id),
   retryFailed: (id: string) => invoke<void>("downloads:retry", id),

@@ -85,6 +85,59 @@ export const getHashMap = async () => {
   return hashMap.data;
 };
 
+export interface ServerSet {
+  size: number;
+  hashes: Set<string>;
+}
+
+let setIndex: { source: BeatmapHashMap; sets: Map<number, ServerSet> } | null = null;
+
+/** Every set the server has, with the beatmaps it knows of them (not always all of them). */
+export const getServerSets = async () => {
+  const hashes = await getHashMap();
+  if (setIndex?.source !== hashes) {
+    const sets = new Map<number, ServerSet>();
+    for (const [hash, [setId, size]] of Object.entries(hashes)) {
+      let set = sets.get(setId);
+      if (!set) sets.set(setId, (set = { size, hashes: new Set() }));
+      set.hashes.add(hash);
+    }
+    setIndex = { source: hashes, sets };
+  }
+  return setIndex.sets;
+};
+
+/** Like getServerSets, but an empty list when the server is down, for things that work without it. */
+export const tryServerSets = async () => {
+  try {
+    return await getServerSets();
+  } catch (error) {
+    log.warn(`Couldn't get the server's beatmap list: ${(error as Error).message}`);
+    return new Map<number, ServerSet>();
+  }
+};
+
+const DETAILS_BATCH = 100;
+
+/**
+ * Details of as many of these beatmaps as the server can give, by id. Never throws: the endpoint has bad
+ * days, callers fall back to something else for whatever is missing.
+ */
+export const tryBeatmapDetails = async (ids: number[]) => {
+  const found = new Map<number, BeatmapDetails>();
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  for (let i = 0; i < unique.length; i += DETAILS_BATCH) {
+    try {
+      for (const beatmap of await getBeatmapDetails(unique.slice(i, i + DETAILS_BATCH))) found.set(beatmap.Id, beatmap);
+    } catch (error) {
+      log.warn(`Beatmap details failed: ${(error as Error).message}`);
+      // Don't hammer a server that's struggling
+      if (!found.size) break;
+    }
+  }
+  return found;
+};
+
 export const getMetrics = async () => {
   try {
     return await request<Metrics>(`${SERVER}/v2/metrics`);

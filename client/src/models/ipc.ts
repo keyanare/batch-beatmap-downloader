@@ -80,6 +80,40 @@ export interface MissingMaps {
   totalSize: number;
 }
 
+/** Which of a player's maps to get from a profile link. */
+export type UserMapList = "maps" | "favourites" | "best";
+
+export interface LinkLookup {
+  /** What the links point to, e.g. an osu!collector collection's name. */
+  title: string;
+  /** Suggested collection name, "" when there's no obvious one. */
+  collectionName: string;
+  summary: SearchSummary;
+  /** Sets the links point to that the server doesn't have, they come from mirrors. */
+  notOnServer: number;
+  /** Beatmaps that couldn't be looked up at all. */
+  unresolved: number;
+}
+
+export interface MapUpdate {
+  setId: number;
+  artist: string;
+  title: string;
+  creator: string;
+  size: number;
+}
+
+export interface MapUpdateCheck {
+  /** Sets from the website that were checked. */
+  checked: number;
+  updates: MapUpdate[];
+  totalSize: number;
+  /** Maps that might have a newer version but couldn't be checked this time. */
+  unchecked: number;
+  /** Maps edited in the game, left alone. */
+  edited: number;
+}
+
 export type DownloadState = "running" | "paused" | "waiting" | "finished";
 
 export interface DownloadInfo {

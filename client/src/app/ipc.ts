@@ -1,5 +1,5 @@
 import { app, dialog, ipcMain, IpcMainInvokeEvent, nativeTheme, shell } from "electron";
-import { AppSettings, CreateDownloadOptions, QueryOrder } from "../models/ipc";
+import { AppSettings, CreateDownloadOptions, QueryOrder, UserMapList } from "../models/ipc";
 import {
   clearFinished,
   deleteDownload,
@@ -12,6 +12,8 @@ import {
 } from "./download/manager";
 import { getWindow } from "./events";
 import { discardPendingCollections, getLibraryStatus, processPending, refreshLibraryStatus } from "./library";
+import { lookupLinks } from "./links";
+import { checkMapUpdates, downloadMapUpdates } from "./mapUpdates";
 import { detectPaths, exists } from "./paths";
 import { downloadMissingMaps, downloadSearch, findMissingMaps, getResultPage, search } from "./search";
 import { getMetrics } from "./server";
@@ -79,17 +81,20 @@ export const registerIpc = () => {
   });
   handle("library:discard-collections", () => discardPendingCollections());
   handle("library:missing", () => findMissingMaps());
+  handle("library:check-updates", () => checkMapUpdates());
 
   // search
   handle("search:query", (node: unknown, name: string, limit?: number, order?: QueryOrder) =>
     search(node, name, limit, order),
   );
+  handle("search:links", (text: string, list: UserMapList) => lookupLinks(text, list));
   handle("search:page", (id: string, page: number, pageSize: number) => getResultPage(id, page, pageSize));
 
   // downloads
   handle("downloads:list", () => listDownloads());
   handle("downloads:from-search", (id: string, options: CreateDownloadOptions) => downloadSearch(id, options));
   handle("downloads:missing", () => downloadMissingMaps());
+  handle("downloads:map-updates", () => downloadMapUpdates());
   handle("downloads:pause", (id: string) => pauseDownload(id));
   handle("downloads:resume", (id: string) => resumeDownload(id));
   handle("downloads:retry", (id: string) => retryFailed(id));

@@ -9,6 +9,8 @@ interface StoredSearch {
   response: FilterResponse;
   owned: Set<number>;
   summary: SearchSummary;
+  /** Hashes of difficulties each set's archive should have, by set id, when known. */
+  expected?: Record<string, string[]>;
 }
 
 // A few recent searches, so result pages and downloads can refer back to them by id
@@ -20,6 +22,17 @@ export const search = async (node: unknown, name: string, limit?: number, order?
     queryBeatmaps(node, limit, order),
     getLibrary().then((library) => library.ownedSetIds()),
   ]);
+  return storeResults(name, response, owned);
+};
+
+/** Keeps a list of maps around so it can be downloaded later, like search results. */
+export const storeResults = async (
+  name: string,
+  response: FilterResponse,
+  owned?: Set<number>,
+  expected?: Record<string, string[]>,
+) => {
+  owned ??= await (await getLibrary()).ownedSetIds();
 
   let totalSize = 0;
   let newSize = 0;
@@ -35,14 +48,14 @@ export const search = async (node: unknown, name: string, limit?: number, order?
 
   const summary: SearchSummary = {
     id: response.Id,
-    beatmaps: response.Ids.length,
+    beatmaps: Math.max(response.Ids.length, response.Hashes.length),
     sets: response.SetIds.length,
     newSets,
     totalSize,
     newSize,
   };
 
-  searches.set(response.Id, { name, response, owned, summary });
+  searches.set(response.Id, { name, response, owned, summary, expected });
   while (searches.size > MAX_STORED) searches.delete(searches.keys().next().value as string);
   return summary;
 };
@@ -65,7 +78,7 @@ export const getResultPage = async (id: string, page: number, pageSize: number) 
 };
 
 export const downloadSearch = async (id: string, { force, collectionName }: CreateDownloadOptions) => {
-  const { name, response, owned, summary } = getSearch(id);
+  const { name, response, owned, summary, expected } = getSearch(id);
   const ids = force ? response.SetIds : response.SetIds.filter((setId) => !owned.has(setId));
   const size = force ? summary.totalSize : summary.newSize;
 
@@ -84,10 +97,11 @@ export const downloadSearch = async (id: string, { force, collectionName }: Crea
     force,
     collectionName: collectionName || undefined,
     hashes: response.Hashes,
+    expected,
   });
 };
 
-let lastMissing: { ids: number[]; sizes: Record<string, number> } | null = null;
+let lastMissing: { ids: number[]; sizes: Record<string, number>; expected: Record<string, string[]> } | null = null;
 
 export const findMissingMaps = async (): Promise<MissingMaps> => {
   const library = await getLibrary();
@@ -101,6 +115,7 @@ export const findMissingMaps = async (): Promise<MissingMaps> => {
   for (const collection of collections) for (const hash of collection.hashes) if (hash) hashes.add(hash);
 
   const sizes: Record<string, number> = {};
+  const expected: Record<string, string[]> = {};
   const ids: number[] = [];
   let unavailable = 0;
   let totalSize = 0;
@@ -112,19 +127,22 @@ export const findMissingMaps = async (): Promise<MissingMaps> => {
       continue;
     }
     const [setId, size] = entry;
-    if (!setId || owned.has(setId) || setId in sizes) continue;
+    if (!setId || owned.has(setId)) continue;
+    // The download has to have the version the collection wants
+    (expected[setId] ??= []).push(hash);
+    if (setId in sizes) continue;
     sizes[setId] = size;
     ids.push(setId);
     totalSize += size;
   }
 
-  lastMissing = { ids, sizes };
+  lastMissing = { ids, sizes, expected };
   return { collections: collections.length, beatmaps: hashes.size, unavailable, ids, totalSize };
 };
 
 export const downloadMissingMaps = async () => {
   if (!lastMissing?.ids.length) throw new Error("Check your collections first");
-  const { ids, sizes } = lastMissing;
+  const { ids, sizes, expected } = lastMissing;
   lastMissing = null;
   return createDownload({
     name: "Missing maps from collections",
@@ -132,5 +150,6 @@ export const downloadMissingMaps = async () => {
     ids,
     sizes,
     force: false,
+    expected,
   });
 };
