@@ -60,6 +60,9 @@ Batch Beatmap Downloader provides an easy way to download a lot of osu! beatmaps
 - Maps you already have are skipped
 - Add downloaded maps to a new or existing collection
 - Download maps that are missing from your collections
+- Paste links and get the maps as a collection: osu!collector collections and tournaments, beatmap links from a mappool or forum post, multiplayer matches, or a player's maps, favourites and top plays
+- Update every outdated map in your library at once, collections move over to the new versions
+- Maps the server doesn't have, or only has an old version of, come from public mirrors instead
 - Pause, resume and retry failed maps; downloads carry on after restarting the app
 
 ### Screenshots
@@ -70,6 +73,20 @@ Batch Beatmap Downloader provides an easy way to download a lot of osu! beatmaps
   <img src="docs/screenshots/results.png" alt="Search results" width="49%">
   <img src="docs/screenshots/downloads.png" alt="Downloads" width="49%">
 </p>
+
+### What's new in 1.6.0
+
+**Maps from links**
+
+Paste one or more links into the box on the home page: an [osu!collector](https://osucollector.com) collection or tournament, beatmap links (a whole mappool copied out of a spreadsheet works), a multiplayer match, or a player's profile to get their maps, favourites or top plays. You see how many maps you already have, and can download the rest and put everything in a collection in one go.
+
+**Map updates**
+
+Maps get updated after you download them, most often between qualified and ranked. "Check for updates" finds every set in your library that has a newer version and updates them all at once. osu!lazer replaces the old versions itself and keeps your scores; for osu!stable the old folders are moved to `bbd-old-versions`. Either way your collections are moved over to the new versions.
+
+**Mirrors**
+
+The download server has old versions of some maps, and doesn't have some others at all. Downloads now check that they got the version they were after and otherwise get it from public mirrors ([catboy.best](https://catboy.best), [nerinyan.moe](https://nerinyan.moe), [osu.direct](https://osu.direct)).
 
 ### What's new in 1.4.0
 

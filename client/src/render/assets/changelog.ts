@@ -9,6 +9,35 @@ export interface ChangeLogItem {
 
 export const changeLog: ChangeLogItem[] = [
   {
+    version: "1.6.0",
+    date: 1790726400000,
+    changes: [
+      {
+        title: "Maps from links",
+        changes: [
+          "Paste links on the home page to download the maps and put them in a collection",
+          "Works with osu!collector collections and tournaments, beatmap and set links (a mappool copied out of a spreadsheet or forum post works too), multiplayer matches and player profiles",
+          "For players: their maps (guest difficulties included), favourites or top plays",
+        ],
+      },
+      {
+        title: "Map updates",
+        changes: [
+          "Finds every map in your library that has a newer version and updates them all at once",
+          "osu!lazer swaps in the new versions itself and keeps your scores, for osu!stable the old folders are moved to bbd-old-versions",
+          "Collections are moved over to the new versions",
+        ],
+      },
+      {
+        title: "Downloads",
+        changes: [
+          "Maps the server doesn't have, or only has an old version of, come from public mirrors (catboy.best, nerinyan.moe, osu.direct)",
+          "Missing maps from your collections are downloaded in the version the collection has, where a mirror has it",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.5.2",
     date: 1790726400000,
     changes: [
