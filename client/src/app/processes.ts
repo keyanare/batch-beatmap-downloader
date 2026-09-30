@@ -92,18 +92,44 @@ const lookupExecutablePaths = async (pids: string[]) => {
   for (const pid of pids) if (!executablePaths.has(pid)) executablePaths.set(pid, null);
 };
 
+/** Running osu!.exe processes (stable and lazer use the same name) with their executable paths. */
+const windowsOsuProcesses = async () => {
+  const tasks = await run("tasklist", ["/FI", "IMAGENAME eq osu!.exe", "/FO", "CSV", "/NH"]);
+  const pids = [...tasks.matchAll(/^"osu!\.exe","(\d+)"/gim)].map((match) => match[1]);
+  if (pids.some((pid) => !executablePaths.has(pid))) await lookupExecutablePaths(pids);
+  return pids.map((pid) => ({ pid, exe: executablePaths.get(pid) ?? null }));
+};
+
+/**
+ * Process id of the running osu!lazer, to tell when the game was restarted. Null when it can't be told apart.
+ */
+export const lazerProcessId = async (): Promise<string | null> => {
+  if (process.platform === "win32") {
+    const processes = await windowsOsuProcesses();
+    const lazer = processes.find(({ exe }) => exe && /[\\/]osulazer[\\/]/i.test(exe));
+    if (lazer) return lazer.pid;
+    return processes.length === 1 ? processes[0].pid : null;
+  }
+
+  const output = await run("ps", ["-A", "-o", "pid=,comm="]);
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^\s*(\d+)\s+(.+?)\s*$/.exec(line);
+    if (match && LAZER_PROCESS_NAMES.includes(path.basename(match[2]))) return match[1];
+  }
+  return null;
+};
+
 /**
  * Whether the osu!stable install in `stableFolder` is running. Stable rewrites collection.db when it
  * closes, so collections must not be written while it's open.
  */
 export const isStableRunning = async (stableFolder: string) => {
   if (process.platform === "win32") {
-    const tasks = await run("tasklist", ["/FI", "IMAGENAME eq osu!.exe", "/FO", "CSV", "/NH"]);
-    const pids = [...tasks.matchAll(/^"osu!\.exe","(\d+)"/gim)].map((match) => match[1]);
-    if (!pids.length) return false;
+    const processes = await windowsOsuProcesses();
+    if (!processes.length) return false;
 
     // osu!lazer uses the same executable name, so compare install folders
-    if (pids.some((pid) => !executablePaths.has(pid))) await lookupExecutablePaths(pids);
+    const pids = processes.map(({ pid }) => pid);
     return pids.some((pid) => {
       const exe = executablePaths.get(pid);
       // Unknown path (e.g. powershell unavailable): assume the worst

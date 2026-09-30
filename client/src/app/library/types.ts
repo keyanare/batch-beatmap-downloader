@@ -26,8 +26,10 @@ export interface Library {
   downloadDir(): Promise<string>;
   /** Downloaded files that still have to be moved/imported into the game. */
   pendingFiles(): Promise<string[]>;
-  /** Moves/imports all pending files into the game. */
-  processPending(): Promise<void>;
+  /** Moves/imports pending files into the game. Returns how many were moved or handed over. */
+  processPending(): Promise<number>;
+  /** lazer: how the game is getting on with the files it was given. */
+  importProgress?(): Promise<{ importing: number; failed: number }>;
   /** Whether processPending can do its job right now. */
   canProcessPending(): Promise<boolean>;
 

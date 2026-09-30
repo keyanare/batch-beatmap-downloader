@@ -45,6 +45,10 @@ export interface LibraryStatus {
   running: boolean;
   /** stable: .osz files in the temp folder. lazer: .osz files waiting to be imported. */
   pending: number;
+  /** lazer: files handed to the game that it hasn't imported yet. */
+  importing: number;
+  /** lazer: files the game didn't manage to import. */
+  failedImports: number;
   /** Collections waiting for the game to close before they can be written. */
   pendingCollections: string[];
   /** lazer: whether osu!.exe was found, so the app can start the game to import maps. */

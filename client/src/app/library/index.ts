@@ -100,6 +100,8 @@ export const getLibraryStatus = async (): Promise<LibraryStatus> => {
   let setCount = 0;
   let downloadDir = "";
   let pending = 0;
+  let importing = 0;
+  let failedImports = 0;
   let loadProblem: string | undefined;
 
   if (valid) {
@@ -107,6 +109,9 @@ export const getLibraryStatus = async (): Promise<LibraryStatus> => {
       setCount = (await library.ownedSetIds()).size;
       downloadDir = await library.downloadDir();
       pending = (await library.pendingFiles()).length;
+      const progress = await library.importProgress?.();
+      importing = progress?.importing ?? 0;
+      failedImports = progress?.failed ?? 0;
     } catch (error) {
       loadProblem = (error as Error).message;
     }
@@ -126,6 +131,8 @@ export const getLibraryStatus = async (): Promise<LibraryStatus> => {
     downloadDir,
     running: await library.isRunning(),
     pending,
+    importing,
+    failedImports,
     pendingCollections,
     canLaunch: settings.client === "lazer" && (await exists(settings.lazerExe)),
   };
@@ -148,16 +155,20 @@ export const processPending = async () => {
   processing = true;
   try {
     const library = await getLibrary();
-    const count = (await library.pendingFiles()).length;
-    if (!count) return;
-    await library.processPending();
-    emitNotice({
-      type: "success",
-      message:
-        library.client === "lazer"
-          ? `Sent ${count} beatmap set(s) to osu!lazer`
-          : `Moved ${count} beatmap set(s) into your Songs folder`,
-    });
+    const count = await library.processPending();
+    if (library.client === "stable") {
+      if (count) emitNotice({ type: "success", message: `Moved ${count} beatmap set(s) into your Songs folder` });
+    } else if (count) {
+      emitNotice({ type: "success", message: `Handed ${count} beatmap set(s) to osu!lazer` });
+    } else if ((await library.pendingFiles()).length) {
+      const { lazerAutoImport } = await getSettings();
+      emitNotice({
+        type: "info",
+        message: lazerAutoImport
+          ? "osu!lazer is still busy with the maps it has, the rest follow automatically"
+          : "osu!lazer is still busy with the maps it has, import the rest once it's through them",
+      });
+    }
   } catch (error) {
     emitError((error as Error).message);
   } finally {
@@ -176,14 +187,19 @@ const tick = async () => {
   // Let the UI know when the game was opened/closed or imports progressed
   const running = await library.isRunning();
   const pending = (await library.pendingFiles()).length;
+  const progress = (await library.importProgress?.()) ?? { importing: 0, failed: 0 };
   if (!lastStatus || lastStatus.client !== library.client || lastStatus.path !== library.root) return;
 
   if (running !== lastStatus.running || (pending === 0 && lastStatus.pending > 0)) {
     // Worth rescanning the library
     await refreshLibraryStatus();
-  } else if (pending !== lastStatus.pending) {
+  } else if (
+    pending !== lastStatus.pending ||
+    progress.importing !== lastStatus.importing ||
+    progress.failed !== lastStatus.failedImports
+  ) {
     // Cheap update while lazer works through an import, without rereading its database every time
-    lastStatus = { ...lastStatus, pending };
+    lastStatus = { ...lastStatus, pending, importing: progress.importing, failedImports: progress.failed };
     emitLibrary(lastStatus);
   }
 };

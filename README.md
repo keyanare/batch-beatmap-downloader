@@ -116,8 +116,9 @@ osu!stable running through wine works too. The app looks in the usual places (os
 
 osu!lazer keeps its maps in a database instead of a Songs folder, so downloaded maps are handed to the game to import, the same way double clicking an `.osz` file does:
 
-- While osu!lazer is open, maps are imported as soon as they finish downloading.
+- While osu!lazer is open, maps are imported as soon as they finish downloading. They go to the game 100 at a time and each one only once, so a big download doesn't flood it. osu!lazer imports one map after another and pauses while you're playing, so thousands of maps take a while.
 - While it's closed, they wait in a folder and are imported the next time the game is open, or right away with "Start osu!lazer & import".
+- Maps osu!lazer couldn't import stay in that folder and show up on the home page with a button to retry them.
 - Maps you already have in osu!lazer are skipped. The database is only ever read from a temporary copy.
 - Collections are written into osu!lazer's database only while the game is closed, after saving a backup as `client.realm.bbd-backup` next to it. If the game is open, the collection is created as soon as you close it.
 

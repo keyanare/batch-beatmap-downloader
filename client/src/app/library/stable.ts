@@ -114,7 +114,7 @@ export class StableLibrary implements Library {
 
   async processPending() {
     const files = await this.pendingFiles();
-    if (!files.length) return;
+    if (!files.length) return 0;
 
     await fs.promises.mkdir(this.songsDir, { recursive: true });
     const failures: string[] = [];
@@ -128,6 +128,7 @@ export class StableLibrary implements Library {
     }
 
     if (failures.length) throw new Error(`Couldn't move ${failures.length} file(s) into your Songs folder`);
+    return files.length;
   }
 
   onSetDownloaded() {

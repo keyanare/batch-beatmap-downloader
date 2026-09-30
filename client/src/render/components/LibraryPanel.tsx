@@ -1,21 +1,16 @@
-import { Database, FileArchive, FolderOpen, FolderInput, Gamepad2, Import, Library, RefreshCw } from "lucide-react";
+import { Database, FileArchive, FolderOpen, FolderInput, Gamepad2, Import, Library, RefreshCw, RotateCcw } from "lucide-react";
 import React, { useState } from "react";
+import { LibraryStatus } from "../../models/ipc";
 import { useLibrary } from "../context/LibraryProvider";
+import { useSettings } from "../context/SettingsProvider";
 import { formatNumber, plural } from "../util/format";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
 import { Badge } from "./ui/Badge";
 import { Callout } from "./ui/Misc";
 
-/** Banners for things waiting to get into the game: downloaded files and collections. */
-export const PendingNotices = () => {
-  const { library } = useLibrary();
+const useProcessPending = () => {
   const [busy, setBusy] = useState(false);
-  if (!library?.valid) return null;
-
-  const lazer = library.client === "lazer";
-  const game = lazer ? "osu!lazer" : "osu!";
-
   const process = async () => {
     setBusy(true);
     try {
@@ -24,39 +19,131 @@ export const PendingNotices = () => {
       setTimeout(() => setBusy(false), 1500);
     }
   };
+  return { busy, process };
+};
+
+const OpenFolder = ({ path }: { path: string }) => (
+  <Button size="sm" variant="ghost" icon={FolderOpen} onClick={() => window.electron.openPath(path)}>
+    Open folder
+  </Button>
+);
+
+const LazerImports = ({ library }: { library: LibraryStatus }) => {
+  const { settings } = useSettings();
+  const { busy, process } = useProcessPending();
+  const autoImport = settings?.lazerAutoImport ?? true;
+  const queued = library.importing;
+  const waiting = Math.max(0, library.pending - queued - library.failedImports);
+  // Without auto import the waiting ones only go in when asked to
+  const importing = queued + (autoImport ? waiting : 0);
 
   return (
     <>
-      {library.warning && <Callout tone="warning">{library.warning}</Callout>}
-
-      {library.pending > 0 && (
+      {library.running && (importing > 0 || waiting > 0) && (
         <Callout
           tone="info"
           title={
-            lazer
-              ? `${plural(library.pending, "beatmap set")} waiting to be imported`
-              : `${plural(library.pending, "beatmap set")} in the temporary folder`
+            importing > 0
+              ? `osu!lazer is importing ${plural(importing, "beatmap set")}`
+              : `${plural(waiting, "beatmap set")} waiting to be imported`
           }
           action={
             <>
-              <Button size="sm" variant="ghost" icon={FolderOpen} onClick={() => window.electron.openPath(library.downloadDir)}>
-                Open folder
-              </Button>
-              {(!lazer || library.running || library.canLaunch) && (
-                <Button size="sm" variant="primary" icon={lazer ? Import : FolderInput} loading={busy} onClick={process}>
-                  {lazer ? (library.running ? "Import now" : "Start osu!lazer & import") : "Move to Songs"}
+              <OpenFolder path={library.downloadDir} />
+              {!autoImport && waiting > 0 && (
+                <Button size="sm" variant="primary" icon={Import} loading={busy} onClick={process}>
+                  Import now
                 </Button>
               )}
             </>
           }
         >
-          {lazer
-            ? library.running
-              ? "osu!lazer is running, they'll be imported automatically in a moment."
-              : "They'll be imported next time osu!lazer is open."
-            : "Move them into your Songs folder whenever you're ready."}
+          {autoImport
+            ? waiting > 0
+              ? `${formatNumber(queued)} in the game's queue, the other ${formatNumber(waiting)} follow as it gets through them. `
+              : ""
+            : queued > 0 && waiting > 0
+              ? `${formatNumber(queued)} in the game's queue, ${formatNumber(waiting)} more waiting. `
+              : ""}
+          {importing > 0 ? "The game pauses imports while you're playing." : "Automatic import is off in settings."}
         </Callout>
       )}
+
+      {!library.running && library.pending - library.failedImports > 0 && (
+        <Callout
+          tone="info"
+          title={`${plural(library.pending - library.failedImports, "beatmap set")} waiting to be imported`}
+          action={
+            <>
+              <OpenFolder path={library.downloadDir} />
+              {library.canLaunch && (
+                <Button size="sm" variant="primary" icon={Import} loading={busy} onClick={process}>
+                  Start osu!lazer & import
+                </Button>
+              )}
+            </>
+          }
+        >
+          They'll be imported next time osu!lazer is open.
+        </Callout>
+      )}
+
+      {library.failedImports > 0 && (
+        <Callout
+          tone="warning"
+          title={`osu!lazer couldn't import ${plural(library.failedImports, "beatmap set")}`}
+          action={
+            <>
+              <OpenFolder path={library.downloadDir} />
+              {(library.running || library.canLaunch) && (
+                <Button size="sm" variant="secondary" icon={RotateCcw} loading={busy} onClick={process}>
+                  Retry
+                </Button>
+              )}
+            </>
+          }
+        >
+          The game went on with later maps but these are still here. Its notifications or logs say why.
+        </Callout>
+      )}
+    </>
+  );
+};
+
+const StableTempFolder = ({ library }: { library: LibraryStatus }) => {
+  const { busy, process } = useProcessPending();
+  if (library.pending === 0) return null;
+  return (
+    <Callout
+      tone="info"
+      title={`${plural(library.pending, "beatmap set")} in the temporary folder`}
+      action={
+        <>
+          <OpenFolder path={library.downloadDir} />
+          <Button size="sm" variant="primary" icon={FolderInput} loading={busy} onClick={process}>
+            Move to Songs
+          </Button>
+        </>
+      }
+    >
+      Move them into your Songs folder whenever you're ready.
+    </Callout>
+  );
+};
+
+/** Banners for things waiting to get into the game: downloaded files and collections. */
+export const PendingNotices = () => {
+  const { library } = useLibrary();
+  if (!library?.valid) return null;
+
+  const lazer = library.client === "lazer";
+  const game = lazer ? "osu!lazer" : "osu!";
+
+  return (
+    <>
+      {library.warning && <Callout tone="warning">{library.warning}</Callout>}
+
+      {lazer ? <LazerImports library={library} /> : <StableTempFolder library={library} />}
 
       {library.pendingCollections.length > 0 && (
         <Callout

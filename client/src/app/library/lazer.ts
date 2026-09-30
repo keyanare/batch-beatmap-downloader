@@ -3,26 +3,21 @@ import path from "path";
 import { app } from "electron";
 import log from "electron-log/main";
 import { AppSettings } from "../../models/ipc";
-import { emitNotice } from "../events";
 import { importWithExecutable, importWithPipe } from "../lazer/importer";
+import { importProgress, pumpImports } from "../lazer/importQueue";
 import { addLazerCollection, readLazerDatabase } from "../lazer/realm";
 import { exists, isLazerFolder, listOszFiles, resolveExecutable, setIdFromName } from "../paths";
 import { isLazerRunning } from "../processes";
 import { Library } from "./types";
 
-// Don't hand the same file to the game again while it's still busy importing it.
-const RESEND_AFTER = 10 * 60 * 1000;
-// Collect finished downloads for a moment so they're imported in batches.
-const BATCH_DELAY = 3000;
+// Collect finished downloads for a moment before looking whether the game wants more
+const PUMP_DELAY = 3000;
 
 export class LazerLibrary implements Library {
   readonly client = "lazer" as const;
   readonly root: string;
 
-  private readonly sent = new Map<string, number>();
-  private queued = new Set<string>();
-  private flushTimer: NodeJS.Timeout | null = null;
-  private importing = false;
+  private pumpTimer: NodeJS.Timeout | null = null;
   private readError: string | null = null;
 
   constructor(private readonly settings: AppSettings) {
@@ -94,86 +89,45 @@ export class LazerLibrary implements Library {
     return (await this.isRunning()) || (await this.executable()) !== null;
   }
 
-  /** Hands files to the game. Starts the game when needed and possible. */
-  private async importFiles(files: string[]) {
-    if (!files.length) return;
-    const now = Date.now();
-    for (const file of files) {
-      this.sent.set(file, now);
-      this.queued.delete(file);
-    }
-
+  /** Hands files to the game. Starts the game if it isn't running and the executable is known. */
+  private readonly send = async (files: string[], running: boolean) => {
     const exe = await this.executable();
-    const running = await this.isRunning();
-    if (exe) {
-      await importWithExecutable(exe, files, running);
-    } else if (running) {
-      await importWithPipe(files);
-    } else {
-      for (const file of files) this.sent.delete(file);
-      throw new Error("Start osu!lazer (or set where osu!.exe is in settings) to import the downloaded maps");
-    }
+    if (exe) await importWithExecutable(exe, files, running);
+    else if (running) await importWithPipe(files);
+    else throw new Error("Start osu!lazer (or set where osu!.exe is in settings) to import the downloaded maps");
+  };
+
+  importProgress() {
+    return importProgress(this.stagingDir);
   }
 
-  async processPending() {
-    // An explicit request, so resend everything that's still waiting
-    await this.importFiles(await this.pendingFiles());
+  processPending() {
+    // Asked for, so this also retries files that failed and starts the game if needed
+    return pumpImports(this.stagingDir, this.send, true);
   }
 
-  private scheduleFlush() {
-    if (this.flushTimer) return;
-    this.flushTimer = setTimeout(() => {
-      this.flushTimer = null;
-      this.flushQueue().catch((error: Error) => log.error("Importing into lazer failed", error));
-    }, BATCH_DELAY);
+  private pump() {
+    if (!this.settings.lazerAutoImport) return Promise.resolve(0);
+    return pumpImports(this.stagingDir, this.send, false);
   }
 
-  private async flushQueue() {
-    if (this.importing || !this.queued.size) return;
-    // Only import automatically while the game is open, we don't want to start it by surprise.
-    if (!(await this.isRunning())) return;
-
-    const now = Date.now();
-    const files = [...this.queued].filter(
-      (file) => fs.existsSync(file) && now - (this.sent.get(file) ?? 0) > RESEND_AFTER,
-    );
-    this.queued = new Set();
-    this.importing = true;
-    try {
-      await this.importFiles(files);
-    } finally {
-      this.importing = false;
-    }
-  }
-
-  onSetDownloaded(file: string) {
-    if (!this.settings.lazerAutoImport) return;
-    this.queued.add(file);
-    this.scheduleFlush();
+  onSetDownloaded() {
+    if (!this.settings.lazerAutoImport || this.pumpTimer) return;
+    this.pumpTimer = setTimeout(() => {
+      this.pumpTimer = null;
+      this.pump().catch((error: Error) => log.error("Importing into lazer failed", error));
+    }, PUMP_DELAY);
   }
 
   async onDownloadsFinished() {
-    await this.flushQueue();
+    await this.pump();
   }
 
   async tick() {
-    if (!this.settings.lazerAutoImport || this.importing) return;
-
-    const pending = await this.pendingFiles();
-    if (!pending.length) return;
-
-    const now = Date.now();
-    const unsent = pending.filter((file) => now - (this.sent.get(file) ?? 0) > RESEND_AFTER);
-    if (!unsent.length || !(await this.isRunning())) return;
-
-    this.importing = true;
     try {
-      await this.importFiles(unsent);
-      emitNotice({ type: "info", message: `Importing ${unsent.length} beatmap set(s) into osu!lazer` });
+      await this.pump();
     } catch (error) {
       log.error("Background import into lazer failed", error);
-    } finally {
-      this.importing = false;
     }
   }
 }
