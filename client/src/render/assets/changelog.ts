@@ -9,6 +9,19 @@ export interface ChangeLogItem {
 
 export const changeLog: ChangeLogItem[] = [
   {
+    version: "1.5.1",
+    date: 1790726400000,
+    changes: [
+      {
+        title: "Updates",
+        changes: [
+          "Windows shows when an update is downloading and when it's ready, with a button to restart into it",
+          "Downloads carry on after restarting for an update",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.5.0",
     date: 1790553600000,
     changes: [
