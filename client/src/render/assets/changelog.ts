@@ -9,6 +9,20 @@ export interface ChangeLogItem {
 
 export const changeLog: ChangeLogItem[] = [
   {
+    version: "1.5.2",
+    date: 1790726400000,
+    changes: [
+      {
+        title: "osu!lazer imports",
+        changes: [
+          "Fixed maps being imported over and over: a big download could show up in osu!lazer as ten times as many imports",
+          "Maps go to osu!lazer 100 at a time, and each one only once while the game is open. A restarted game gets whatever it didn't get to",
+          "Shows how many maps osu!lazer is importing, and which ones it couldn't import, with a button to retry them",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.5.1",
     date: 1790726400000,
     changes: [
