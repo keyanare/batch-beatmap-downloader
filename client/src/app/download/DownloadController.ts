@@ -2,6 +2,7 @@ import log from "electron-log/main";
 import { DownloadInfo, DownloadState } from "../../models/ipc";
 import { emitError } from "../events";
 import { getLibrary } from "../library";
+import { onSetDownloaded as onMapUpdateDownloaded } from "../mapUpdates";
 import { Library } from "../library/types";
 import { ping, reportBeatmapDownload, reportDownloadUpdate } from "../server";
 import { getSettings } from "../store";
@@ -23,6 +24,10 @@ export interface PersistedDownload {
   force: boolean;
   /** Size of each set in bytes, when known. */
   sizes?: Record<string, number>;
+  /** Hashes of difficulties each set's archive should have, by set id. */
+  expected?: Record<string, string[]>;
+  /** Get the sets from the mirrors first, the server is known to have old versions of them. */
+  mirrorsFirst?: boolean;
 }
 
 export interface DownloadHooks {
@@ -45,6 +50,8 @@ export class DownloadController {
   private readonly failed: number[];
   private readonly skipped: number[];
   private readonly sizes: Record<string, number>;
+  private readonly expected: Record<string, string[]>;
+  private readonly mirrorsFirst: boolean;
   private totalSize: number;
   private totalProgress: number;
 
@@ -74,6 +81,8 @@ export class DownloadController {
     this.failed = [...data.failed];
     this.skipped = [...data.skipped];
     this.sizes = { ...(data.sizes ?? {}) };
+    this.expected = data.expected ?? {};
+    this.mirrorsFirst = data.mirrorsFirst ?? false;
     this.totalSize = data.totalSize;
     this.totalProgress = data.totalProgress;
     if (this.remaining === 0) this.state = "finished";
@@ -108,6 +117,8 @@ export class DownloadController {
       totalProgress: this.totalProgress,
       force: this.force,
       sizes: this.sizes,
+      expected: this.expected,
+      mirrorsFirst: this.mirrorsFirst,
     };
   }
 
@@ -276,6 +287,8 @@ export class DownloadController {
     try {
       const { file, bytes } = await fetchSet(setId, dir, {
         signal: controller.signal,
+        expected: this.expected[setId],
+        mirrorsFirst: this.mirrorsFirst,
         onProgress: (received) => {
           const previous = this.inFlight.get(setId) ?? 0;
           this.inFlight.set(setId, received);
@@ -289,6 +302,7 @@ export class DownloadController {
       this.totalProgress += bytes;
       this.networkFailures = 0;
       library.onSetDownloaded(file);
+      onMapUpdateDownloaded(setId).catch((error: Error) => log.error(`Replacing the old version of ${setId} failed`, error));
       reportBeatmapDownload(this.metricsId, setId, (Date.now() - started) / Math.max(concurrency, 1));
     } catch (error) {
       if (this.generation !== generation) return;

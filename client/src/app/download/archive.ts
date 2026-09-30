@@ -1,5 +1,7 @@
+import crypto from "crypto";
 import fs from "fs";
 import { pipeline } from "stream/promises";
+import zlib from "zlib";
 
 // Checks that a downloaded .osz is a complete zip archive, and repairs a problem with some files on the
 // download server: they were stored with the multipart/form-data envelope they were uploaded in, i.e.
@@ -83,4 +85,54 @@ export const repairArchive = async (file: string) => {
     }
   }
   return isCompleteZip(file);
+};
+
+const CENTRAL_FILE_HEADER = 0x02014b50;
+const LOCAL_HEADER = 0x04034b50;
+
+/** MD5 hashes of the .osu files in an archive, i.e. which versions of the difficulties it has. */
+export const beatmapHashes = async (file: string) => {
+  const hashes = new Set<string>();
+  const handle = await fs.promises.open(file, "r");
+  try {
+    const { size } = await handle.stat();
+    const tailLength = Math.min(size, MAX_END_RECORD);
+    const tail = await readAt(handle, size - tailLength, tailLength);
+    const end = tail.lastIndexOf(END_OF_CENTRAL_DIRECTORY);
+    if (end < 0 || end + 22 > tail.length) return hashes;
+
+    const entries = tail.readUInt16LE(end + 10);
+    const directorySize = tail.readUInt32LE(end + 12);
+    const directoryOffset = tail.readUInt32LE(end + 16);
+    const directory = await readAt(handle, directoryOffset, directorySize);
+
+    let offset = 0;
+    for (let i = 0; i < entries && offset + 46 <= directory.length; i++) {
+      if (directory.readUInt32LE(offset) !== CENTRAL_FILE_HEADER) break;
+      const method = directory.readUInt16LE(offset + 10);
+      const compressedSize = directory.readUInt32LE(offset + 20);
+      const nameLength = directory.readUInt16LE(offset + 28);
+      const extraLength = directory.readUInt16LE(offset + 30);
+      const commentLength = directory.readUInt16LE(offset + 32);
+      const localOffset = directory.readUInt32LE(offset + 42);
+      const name = directory.toString("utf8", offset + 46, offset + 46 + nameLength);
+      offset += 46 + nameLength + extraLength + commentLength;
+
+      if (!name.toLowerCase().endsWith(".osu") || (method !== 0 && method !== 8)) continue;
+
+      const local = await readAt(handle, localOffset, 30);
+      if (local.length < 30 || local.readUInt32LE(0) !== LOCAL_HEADER) continue;
+      const dataStart = localOffset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28);
+      const data = await readAt(handle, dataStart, compressedSize);
+      try {
+        const content = method === 8 ? zlib.inflateRawSync(data) : data;
+        hashes.add(crypto.createHash("md5").update(content).digest("hex"));
+      } catch {
+        // A broken entry just doesn't count
+      }
+    }
+  } finally {
+    await handle.close();
+  }
+  return hashes;
 };

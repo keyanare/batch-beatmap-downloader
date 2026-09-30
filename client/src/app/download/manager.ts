@@ -115,9 +115,22 @@ export interface NewDownload {
   force: boolean;
   collectionName?: string;
   hashes?: string[];
+  /** Hashes of difficulties each set's archive should have, by set id. */
+  expected?: Record<string, string[]>;
+  mirrorsFirst?: boolean;
 }
 
-export const createDownload = async ({ name, metricsId, ids, sizes, force, collectionName, hashes }: NewDownload) => {
+export const createDownload = async ({
+  name,
+  metricsId,
+  ids,
+  sizes,
+  force,
+  collectionName,
+  hashes,
+  expected,
+  mirrorsFirst,
+}: NewDownload) => {
   // Sets that another unfinished download is already taking care of
   const taken = new Set<number>();
   for (const download of downloads.values()) {
@@ -154,6 +167,8 @@ export const createDownload = async ({ name, metricsId, ids, sizes, force, colle
       totalProgress: 0,
       force,
       sizes: Object.fromEntries(unique.map((id) => [id, sizes[id] ?? 0])),
+      expected: expected && Object.fromEntries(unique.filter((id) => expected[id]?.length).map((id) => [id, expected[id]])),
+      mirrorsFirst,
     },
     hooks,
   );
